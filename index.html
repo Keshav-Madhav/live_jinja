@@ -1,0 +1,817 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Jinja Parser</title>
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/codemirror.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/theme/material-darker.min.css">
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/nunjucks/3.2.4/nunjucks.min.js"></script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/mode/jinja2/jinja2.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/mode/javascript/javascript.min.js"></script>
+
+    <style>
+        :root {
+            --editor-background: #212121;
+            --pane-background: #fdfdfd;
+            --border-color: #e0e0e0;
+            --header-color: #424242;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            background-color: #f4f4f9;
+            color: #333;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        h1 {
+            text-align: center;
+            color: var(--header-color);
+            margin: 15px 0 10px;
+            font-weight: 500;
+            font-size: 20px;
+        }
+        .controls {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+            padding: 10px;
+            background: var(--pane-background);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            margin: 0 10px 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 24px;
+        }
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 24px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        input:checked + .slider {
+            background-color: #2196F3;
+        }
+        input:checked + .slider:before {
+            transform: translateX(20px);
+        }
+        .rerender-btn {
+            padding: 6px 12px;
+            background: #2196F3;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+            transition: background 0.3s;
+        }
+        .rerender-btn:hover {
+            background: #1976D2;
+        }
+        .rerender-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .control-label {
+            font-size: 12px;
+            color: var(--header-color);
+            font-weight: 500;
+        }
+        .container {
+            display: flex;
+            flex-grow: 1;
+            gap: 10px;
+            padding: 0 10px 10px;
+            min-width: 0; /* Allow flex shrinking */
+            overflow: hidden;
+        }
+        .left-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            height: calc(100vh - 140px); /* Adjusted for controls */
+            min-width: 0; /* Allow flex shrinking */
+            overflow: hidden;
+        }
+        .right-panel {
+            flex: 1;
+            height: calc(100vh - 140px); /* Adjusted for controls */
+            min-width: 0; /* Allow flex shrinking */
+            overflow: hidden;
+        }
+        .pane {
+            display: flex;
+            flex-direction: column;
+            background: var(--pane-background);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            min-height: 0; /* Allow flex items to shrink */
+            min-width: 0; /* Allow flex items to shrink horizontally */
+            width: 100%;
+        }
+        .template-pane {
+            flex: 2;
+            min-height: 0;
+        }
+        .variables-pane {
+            flex: 1;
+            min-height: 0;
+        }
+        .pane h2 {
+            margin: 0;
+            padding: 12px;
+            font-size: 14px;
+            background: var(--pane-background);
+            border-bottom: 1px solid var(--border-color);
+            color: var(--header-color);
+            font-weight: 600;
+        }
+        .pane-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--pane-background);
+            border-bottom: 1px solid var(--border-color);
+            padding: 12px;
+        }
+        .pane-header h2 {
+            margin: 0;
+            padding: 0;
+            border-bottom: none;
+            background: none;
+        }
+        .header-controls {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .header-btn {
+            padding: 4px 8px;
+            background: #2196F3;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: 500;
+            transition: background 0.3s;
+        }
+        .header-btn:hover {
+            background: #1976D2;
+        }
+        .CodeMirror {
+            flex-grow: 1;
+            height: auto;
+            font-size: 12px;
+            min-height: 0;
+            width: 100%;
+            max-width: 100%;
+        }
+        .CodeMirror-scroll {
+            overflow-x: auto !important;
+            overflow-y: auto !important;
+            max-width: 100%;
+        }
+        .CodeMirror-lines {
+            max-width: 100%;
+        }
+        #output-pane {
+            height: 100%;
+            min-height: 0;
+        }
+        #output {
+            flex-grow: 1;
+            padding: 15px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            overflow: auto;
+            font-family: "Menlo", "Consolas", monospace;
+            font-size: 12px;
+            line-height: 1.6;
+            height: 100%;
+            min-height: 0;
+            position: relative;
+        }
+        .error {
+            color: #d32f2f;
+            font-weight: bold;
+        }
+        .variable-input {
+            margin-bottom: 15px;
+        }
+        .variable-input label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: var(--header-color);
+            font-size: 12px;
+        }
+        .variable-input input, .variable-input textarea {
+            width: 100%;
+            padding: 6px 8px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-size: 12px;
+            font-family: "Menlo", "Consolas", monospace;
+            background: white;
+            box-sizing: border-box;
+        }
+        .variable-input textarea {
+            min-height: 60px;
+            resize: vertical;
+        }
+        .variable-input input:focus, .variable-input textarea:focus {
+            outline: none;
+            border-color: #2196F3;
+            box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.2);
+        }
+        .form-mode-toggle {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 12px;
+            background: #f8f9fa;
+            border-bottom: 1px solid var(--border-color);
+            font-size: 12px;
+        }
+        .mode-switch {
+            color: #2196F3;
+            cursor: pointer;
+            text-decoration: underline;
+            font-size: 11px;
+        }
+        
+        /* Resize handles */
+        .resize-handle {
+            background: transparent;
+            transition: background 0.2s;
+        }
+        .resize-handle:hover {
+            background: rgba(33, 150, 243, 0.5);
+        }
+        .resize-handle-horizontal {
+            height: 4px;
+            cursor: row-resize;
+            width: 100%;
+        }
+        .resize-handle-vertical {
+            width: 4px;
+            cursor: col-resize;
+            height: 100%;
+        }
+        
+        /* Container adjustments for resizing */
+        .resizable-container {
+            display: flex;
+            flex-grow: 1;
+            gap: 0;
+            padding: 0 10px 10px;
+            min-width: 0;
+            overflow: hidden;
+        }
+        .resizable-left-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+            min-width: 200px;
+            max-width: calc(100vw - 250px);
+            overflow: hidden;
+        }
+        .resizable-right-panel {
+            min-width: 200px;
+            overflow: hidden;
+        }
+        .resizable-template-pane {
+            min-height: 100px;
+            overflow: hidden;
+        }
+        .resizable-variables-pane {
+            min-height: 100px;
+            overflow: hidden;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Live Jinja Parser 🚀</h1>
+    
+    <div class="controls">
+        <div class="control-group">
+            <span class="control-label">Auto Rerender</span>
+            <label class="switch">
+                <input type="checkbox" id="auto-rerender-toggle" checked>
+                <span class="slider"></span>
+            </label>
+        </div>
+        <button class="rerender-btn" id="manual-rerender">Rerender</button>
+    </div>
+    
+    <div class="resizable-container" id="main-container">
+        <div class="resizable-left-panel" id="left-panel">
+            <div class="pane resizable-template-pane" id="template-pane">
+                <div class="pane-header">
+                    <h2>Jinja Template</h2>
+                    <div class="header-controls">
+                        <div class="control-group">
+                            <span class="control-label">Text Wrap</span>
+                            <label class="switch">
+                                <input type="checkbox" id="text-wrap-toggle" checked>
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                <textarea id="jinja-template"></textarea>
+            </div>
+            <div class="resize-handle resize-handle-horizontal" id="horizontal-resize"></div>
+            <div class="pane resizable-variables-pane" id="variables-pane">
+                <div class="pane-header">
+                    <h2 id="variables-header">Variables (JSON)</h2>
+                    <div class="header-controls">
+                        <button class="header-btn" id="extract-variables-header">Extract Variables</button>
+                        <span class="mode-switch" id="toggle-mode">Switch to Form Mode</span>
+                    </div>
+                </div>
+                <textarea id="variables"></textarea>
+                <div id="variables-form" style="display: none; padding: 15px; overflow-y: auto; flex-grow: 1;"></div>
+            </div>
+        </div>
+        <div class="resize-handle resize-handle-vertical" id="vertical-resize"></div>
+        <div class="resizable-right-panel" id="right-panel">
+            <div class="pane" id="output-pane">
+                <h2>Output</h2>
+                <pre id="output"></pre>
+            </div>
+        </div>
+    </div>
+
+<script>
+    // Start with empty template and variables
+    const defaultTemplate = ``;
+
+    const defaultVars = {};
+    
+    // --- EDITOR SETUP ---
+    const commonEditorOptions = {
+        lineNumbers: true,
+        theme: 'material-darker',
+        lineWrapping: true,
+        viewportMargin: Infinity, // Render all content
+        scrollbarStyle: 'native'
+    };
+
+    const jinjaEditor = CodeMirror.fromTextArea(document.getElementById('jinja-template'), {
+        ...commonEditorOptions,
+        mode: 'jinja2',
+    });
+
+    const varsEditor = CodeMirror.fromTextArea(document.getElementById('variables'), {
+        ...commonEditorOptions,
+        mode: { name: 'javascript', json: true },
+    });
+
+    jinjaEditor.setValue(defaultTemplate);
+    varsEditor.setValue(JSON.stringify(defaultVars, null, 2));
+    
+    const outputElement = document.getElementById('output');
+
+    // Nunjucks setup
+    nunjucks.configure({ autoescape: true });
+
+    // --- CONTROL ELEMENTS ---
+    const textWrapToggle = document.getElementById('text-wrap-toggle');
+    const autoRerenderToggle = document.getElementById('auto-rerender-toggle');
+    const manualRerenderBtn = document.getElementById('manual-rerender');
+    const extractVariablesBtn = document.getElementById('extract-variables-header');
+    const toggleModeBtn = document.getElementById('toggle-mode');
+    const variablesForm = document.getElementById('variables-form');
+    const variablesHeader = document.getElementById('variables-header');
+    
+    // --- STATE MANAGEMENT ---
+    let isFormMode = false;
+    let extractedVariables = new Set();
+    let currentVariableValues = {};
+    
+    // --- RESIZE STATE ---
+    let isResizing = false;
+    let resizeType = null;
+    let startX = 0;
+    let startY = 0;
+    let startWidth = 0;
+    let startHeight = 0;
+
+    // --- CORE LOGIC ---
+
+    /**
+     * Extracts variable names from a Jinja template
+     */
+    function extractVariablesFromTemplate(template) {
+        const variables = new Set();
+        
+        // Match {{ variable_name }} patterns
+        const variablePattern = /\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*)\s*\}\}/g;
+        let match;
+        
+        while ((match = variablePattern.exec(template)) !== null) {
+            // Only take the root variable name (before any dots)
+            const rootVar = match[1].split('.')[0];
+            variables.add(rootVar);
+        }
+        
+        // Match {% for item in variable %} patterns
+        const forPattern = /\{\%\s*for\s+\w+\s+in\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\%\}/g;
+        while ((match = forPattern.exec(template)) !== null) {
+            variables.add(match[1]);
+        }
+        
+        // Match {% if variable %} patterns
+        const ifPattern = /\{\%\s*if\s+([a-zA-Z_][a-zA-Z0-9_]*)/g;
+        while ((match = ifPattern.exec(template)) !== null) {
+            variables.add(match[1]);
+        }
+        
+        return variables;
+    }
+
+    /**
+     * Creates form inputs for extracted variables
+     */
+    function createVariableForm(variables) {
+        variablesForm.innerHTML = '';
+        
+        if (variables.size === 0) {
+            variablesForm.innerHTML = '<p style="color: #666; font-style: italic;">No variables found in template. Use {{ variable_name }} syntax.</p>';
+            return;
+        }
+        
+        variables.forEach(varName => {
+            const inputDiv = document.createElement('div');
+            inputDiv.className = 'variable-input';
+            
+            const label = document.createElement('label');
+            label.textContent = varName;
+            label.setAttribute('for', `var-${varName}`);
+            
+            // Determine if we should use textarea or input based on existing value
+            const existingValue = currentVariableValues[varName] || '';
+            const isMultiline = existingValue.includes('\n') || existingValue.length > 50;
+            
+            const input = document.createElement(isMultiline ? 'textarea' : 'input');
+            input.id = `var-${varName}`;
+            input.name = varName;
+            input.value = existingValue;
+            
+            if (!isMultiline) {
+                input.type = 'text';
+                input.placeholder = `Enter value for ${varName}`;
+            } else {
+                input.placeholder = `Enter value for ${varName}`;
+            }
+            
+            // Add event listener for auto-rerender
+            input.addEventListener('input', function() {
+                currentVariableValues[varName] = this.value;
+                if (autoRerenderToggle.checked) {
+                    update();
+                }
+            });
+            
+            inputDiv.appendChild(label);
+            inputDiv.appendChild(input);
+            variablesForm.appendChild(inputDiv);
+        });
+    }
+
+    /**
+     * Gets current variable values from form or JSON
+     */
+    function getCurrentVariables() {
+        if (isFormMode) {
+            const formData = {};
+            variablesForm.querySelectorAll('input, textarea').forEach(input => {
+                const varName = input.name;
+                let value = input.value;
+                
+                // Try to parse as JSON if it looks like JSON
+                if (value.trim().startsWith('{') || value.trim().startsWith('[') || 
+                    value === 'true' || value === 'false' || 
+                    (value.trim() && !isNaN(value.trim()))) {
+                    try {
+                        value = JSON.parse(value);
+                    } catch (e) {
+                        // Keep as string if not valid JSON
+                    }
+                }
+                
+                formData[varName] = value;
+            });
+            return formData;
+        } else {
+            try {
+                return JSON.parse(varsEditor.getValue() || '{}');
+            } catch (e) {
+                return {};
+            }
+        }
+    }
+
+
+    /**
+     * The main function to update the rendering. It gets triggered on any change.
+     */
+    function update() {
+        const template = jinjaEditor.getValue();
+        let context;
+
+        // 1. Get variables from current mode (form or JSON)
+        try {
+            context = getCurrentVariables();
+        } catch (e) {
+            // If there's an error getting variables, show it
+            outputElement.textContent = `Error in variables:\n${e.message}`;
+            outputElement.className = 'error';
+            return;
+        }
+
+        // 2. Render the template with the context
+        try {
+            const result = nunjucks.renderString(template, context);
+            
+            // Set the main content
+            outputElement.textContent = result;
+            outputElement.className = '';
+        } catch (e) {
+            outputElement.textContent = e.message;
+            outputElement.className = 'error';
+        }
+    }
+
+    // --- CONTROL HANDLERS ---
+
+    // Extract variables button
+    extractVariablesBtn.addEventListener('click', function() {
+        const template = jinjaEditor.getValue();
+        const newVariables = extractVariablesFromTemplate(template);
+        
+        // Get current values from the active mode (form or JSON)
+        const currentValues = getCurrentVariables();
+        
+        // Preserve existing values for variables that still exist, only add empty for new ones
+        const newVariableValues = {};
+        newVariables.forEach(varName => {
+            // If variable exists in current values, keep it; otherwise set to empty
+            newVariableValues[varName] = currentValues.hasOwnProperty(varName) ? currentValues[varName] : '';
+        });
+        
+        // Update state
+        extractedVariables = newVariables;
+        currentVariableValues = newVariableValues;
+        
+        // If in form mode, recreate the form
+        if (isFormMode) {
+            createVariableForm(newVariables);
+        }
+        
+        // Update JSON editor to reflect current values
+        varsEditor.setValue(JSON.stringify(newVariableValues, null, 2));
+        
+        // Re-render
+        update();
+    });
+
+    // Mode toggle button
+    toggleModeBtn.addEventListener('click', function() {
+        isFormMode = !isFormMode;
+        
+        if (isFormMode) {
+            // Switch to form mode
+            varsEditor.getWrapperElement().style.display = 'none';
+            variablesForm.style.display = 'block';
+            toggleModeBtn.textContent = 'Switch to JSON Mode';
+            variablesHeader.textContent = 'Variables (Form)';
+            
+            // Get current variables from JSON and update our state
+            try {
+                const currentVars = JSON.parse(varsEditor.getValue() || '{}');
+                currentVariableValues = currentVars;
+                extractedVariables = new Set(Object.keys(currentVars));
+            } catch (e) {
+                // If JSON is invalid, keep existing state
+            }
+            
+            // Create form with current variables
+            createVariableForm(extractedVariables);
+        } else {
+            // Switch to JSON mode
+            varsEditor.getWrapperElement().style.display = 'block';
+            variablesForm.style.display = 'none';
+            toggleModeBtn.textContent = 'Switch to Form Mode';
+            variablesHeader.textContent = 'Variables (JSON)';
+            
+            // Update JSON editor with current form values
+            const currentVars = getCurrentVariables();
+            varsEditor.setValue(JSON.stringify(currentVars, null, 2));
+        }
+    });
+
+    // Text wrap toggle
+    textWrapToggle.addEventListener('change', function() {
+        const wrapMode = this.checked;
+        jinjaEditor.setOption('lineWrapping', wrapMode);
+        varsEditor.setOption('lineWrapping', wrapMode);
+    });
+
+
+    // Auto rerender toggle
+    autoRerenderToggle.addEventListener('change', function() {
+        manualRerenderBtn.disabled = this.checked;
+    });
+
+    // Manual rerender button
+    manualRerenderBtn.addEventListener('click', function() {
+        update();
+    });
+
+    // --- EVENT LISTENERS ---
+    // Conditional event listeners based on auto-rerender setting
+    function setupEventListeners() {
+        if (autoRerenderToggle.checked) {
+            jinjaEditor.on('change', update);
+            varsEditor.on('change', update);
+        } else {
+            jinjaEditor.off('change', update);
+            varsEditor.off('change', update);
+        }
+    }
+
+    // Update event listeners when auto-rerender changes
+    autoRerenderToggle.addEventListener('change', function() {
+        manualRerenderBtn.disabled = this.checked;
+        setupEventListeners();
+    });
+
+    // --- RESIZE FUNCTIONALITY ---
+    
+    // Get resize elements
+    const horizontalResize = document.getElementById('horizontal-resize');
+    const verticalResize = document.getElementById('vertical-resize');
+    const leftPanel = document.getElementById('left-panel');
+    const rightPanel = document.getElementById('right-panel');
+    const templatePane = document.getElementById('template-pane');
+    const variablesPane = document.getElementById('variables-pane');
+    const mainContainer = document.getElementById('main-container');
+    
+    // Initialize default sizes
+    let leftPanelWidth = 50; // percentage
+    let templatePaneHeight = 60; // percentage
+    
+    function setInitialSizes() {
+        const containerRect = mainContainer.getBoundingClientRect();
+        leftPanel.style.width = `${leftPanelWidth}%`;
+        rightPanel.style.width = `${100 - leftPanelWidth}%`;
+        
+        const leftPanelRect = leftPanel.getBoundingClientRect();
+        templatePane.style.height = `${templatePaneHeight}%`;
+        variablesPane.style.height = `${100 - templatePaneHeight}%`;
+    }
+    
+    // Horizontal resize (between template and variables)
+    horizontalResize.addEventListener('mousedown', function(e) {
+        isResizing = true;
+        resizeType = 'horizontal';
+        startY = e.clientY;
+        
+        const leftPanelRect = leftPanel.getBoundingClientRect();
+        const templateRect = templatePane.getBoundingClientRect();
+        startHeight = templateRect.height;
+        
+        document.addEventListener('mousemove', handleResize);
+        document.addEventListener('mouseup', stopResize);
+        e.preventDefault();
+    });
+    
+    // Vertical resize (between left and right panels)
+    verticalResize.addEventListener('mousedown', function(e) {
+        isResizing = true;
+        resizeType = 'vertical';
+        startX = e.clientX;
+        
+        const containerRect = mainContainer.getBoundingClientRect();
+        const leftRect = leftPanel.getBoundingClientRect();
+        startWidth = leftRect.width;
+        
+        document.addEventListener('mousemove', handleResize);
+        document.addEventListener('mouseup', stopResize);
+        e.preventDefault();
+    });
+    
+    function handleResize(e) {
+        if (!isResizing) return;
+        
+        if (resizeType === 'horizontal') {
+            const deltaY = e.clientY - startY;
+            const leftPanelRect = leftPanel.getBoundingClientRect();
+            const newTemplateHeight = startHeight + deltaY;
+            const minHeight = 100;
+            const maxHeight = leftPanelRect.height - minHeight - 4; // 4px for resize handle
+            
+            if (newTemplateHeight >= minHeight && newTemplateHeight <= maxHeight) {
+                const templatePercentage = (newTemplateHeight / leftPanelRect.height) * 100;
+                const variablesPercentage = 100 - templatePercentage;
+                
+                templatePane.style.height = `${templatePercentage}%`;
+                variablesPane.style.height = `${variablesPercentage}%`;
+                templatePaneHeight = templatePercentage;
+            }
+        } else if (resizeType === 'vertical') {
+            const deltaX = e.clientX - startX;
+            const containerRect = mainContainer.getBoundingClientRect();
+            const newLeftWidth = startWidth + deltaX;
+            const minWidth = 200;
+            const maxWidth = containerRect.width - minWidth - 4; // 4px for resize handle
+            
+            if (newLeftWidth >= minWidth && newLeftWidth <= maxWidth) {
+                const leftPercentage = (newLeftWidth / containerRect.width) * 100;
+                const rightPercentage = 100 - leftPercentage;
+                
+                leftPanel.style.width = `${leftPercentage}%`;
+                rightPanel.style.width = `${rightPercentage}%`;
+                leftPanelWidth = leftPercentage;
+            }
+        }
+        
+        // Refresh CodeMirror editors after resize
+        setTimeout(() => {
+            jinjaEditor.refresh();
+            varsEditor.refresh();
+        }, 10);
+    }
+    
+    function stopResize() {
+        isResizing = false;
+        resizeType = null;
+        document.removeEventListener('mousemove', handleResize);
+        document.removeEventListener('mouseup', stopResize);
+    }
+    
+    // Handle window resize
+    window.addEventListener('resize', function() {
+        setTimeout(() => {
+            jinjaEditor.refresh();
+            varsEditor.refresh();
+        }, 100);
+    });
+
+    // Initial setup
+    setInitialSizes();
+    setupEventListeners();
+
+    // Initial render on page load
+    update();
+
+</script>
+
+</body>
+</html>
