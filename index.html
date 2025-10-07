@@ -265,10 +265,19 @@
             font-size: 12px;
         }
         .mode-switch {
-            color: #2196F3;
+            background: #2196F3;
+            color: white;
             cursor: pointer;
-            text-decoration: underline;
+            text-decoration: none;
             font-size: 11px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            border: none;
+            font-weight: 500;
+            transition: background 0.3s;
+        }
+        .mode-switch:hover {
+            background: #1976D2;
         }
         
         /* Resize handles */
@@ -345,6 +354,30 @@
             z-index: 999;
             display: none;
         }
+        
+        /* --- UPDATED WHITESPACE STYLING --- */
+        .whitespace-char {
+            /* Use relative positioning to anchor the pseudo-element */
+            position: relative;
+        }
+        .whitespace-char::before {
+            /* Position the symbol absolutely so it doesn't affect layout */
+            position: absolute;
+            color: #757575;
+            opacity: 0.6;
+            /* Prevent the symbols from being selected with the text */
+            pointer-events: none;
+        }
+        .whitespace-char.space::before {
+            content: '·';
+        }
+        .whitespace-char.tab::before {
+            content: '→';
+        }
+        .whitespace-char.newline::before {
+            content: '↵';
+        }
+
     </style>
 </head>
 <body>
@@ -360,6 +393,7 @@
                 <div class="pane-header">
                     <h2>Jinja Template</h2>
                     <div class="header-controls">
+                        <button class="header-btn" id="copy-template-btn">Copy Template</button>
                         <div class="control-group">
                             <span class="control-label">Text Wrap</span>
                             <label class="switch">
@@ -377,7 +411,7 @@
                     <h2 id="variables-header">Variables (JSON)</h2>
                     <div class="header-controls">
                         <button class="header-btn" id="extract-variables-header">Extract Variables</button>
-                        <span class="mode-switch" id="toggle-mode">Switch to Form Mode</span>
+                        <button class="mode-switch" id="toggle-mode">Switch to Form Mode</button>
                     </div>
                 </div>
                 <textarea id="variables"></textarea>
@@ -390,6 +424,14 @@
                 <div class="pane-header">
                 <h2>Output</h2>
                     <div class="header-controls">
+                        <button class="header-btn" id="copy-output-btn">Copy Output</button>
+                        <div class="control-group">
+                            <span class="control-label">Whitespace</span>
+                            <label class="switch">
+                                <input type="checkbox" id="show-whitespace-toggle">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
                         <div class="control-group">
                             <span class="control-label">Auto Rerender</span>
                             <label class="switch">
@@ -451,6 +493,9 @@
     const toggleModeBtn = document.getElementById('toggle-mode');
     const variablesForm = document.getElementById('variables-form');
     const variablesHeader = document.getElementById('variables-header');
+    const copyTemplateBtn = document.getElementById('copy-template-btn');
+    const copyOutputBtn = document.getElementById('copy-output-btn');
+    const showWhitespaceToggle = document.getElementById('show-whitespace-toggle');
     
     // --- STATE MANAGEMENT ---
     let isFormMode = false;
@@ -488,6 +533,78 @@
     }
 
     // --- CORE LOGIC ---
+
+    /**
+     * Provides visual feedback for button clicks
+     */
+    function showButtonFeedback(button, message = 'Done!', duration = 1500) {
+        const originalText = button.textContent;
+        const originalBackground = button.style.background || getComputedStyle(button).backgroundColor;
+        
+        button.textContent = message;
+        button.style.background = '#4CAF50';
+        button.disabled = true;
+        
+        setTimeout(() => {
+            button.textContent = originalText;
+            button.style.background = originalBackground;
+            button.disabled = false;
+        }, duration);
+    }
+
+    /**
+     * Provides visual feedback for toggle switches
+     */
+    function showToggleFeedback(toggleElement, message) {
+        // Create a temporary tooltip-like element
+        const feedback = document.createElement('div');
+        feedback.textContent = message;
+        feedback.style.cssText = `
+            position: absolute;
+            background: #4CAF50;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 500;
+            z-index: 1000;
+            pointer-events: none;
+            transform: translateX(-50%);
+            white-space: nowrap;
+        `;
+        
+        // Position relative to the toggle
+        const rect = toggleElement.getBoundingClientRect();
+        feedback.style.left = `${rect.left + rect.width / 2}px`;
+        feedback.style.top = `${rect.top - 30}px`;
+        
+        document.body.appendChild(feedback);
+        
+        setTimeout(() => {
+            if (feedback.parentNode) {
+                feedback.parentNode.removeChild(feedback);
+            }
+        }, 1000);
+    }
+
+    /**
+     * UPDATED: Renders text with visible whitespace characters without affecting layout.
+     */
+    function renderWhitespace(text) {
+        // First, escape any potential HTML in the text to prevent XSS
+        const escapedText = text.replace(/&/g, '&amp;')
+                                .replace(/</g, '&lt;')
+                                .replace(/>/g, '&gt;')
+                                .replace(/"/g, '&quot;')
+                                .replace(/'/g, '&#039;');
+
+        // Wrap whitespace characters in spans. The original characters are
+        // preserved for layout, and CSS pseudo-elements add the visual symbols.
+        return escapedText
+            .replace(/ /g, '<span class="whitespace-char space"> </span>')
+            .replace(/\t/g, '<span class="whitespace-char tab">\t</span>')
+            .replace(/\n/g, '<span class="whitespace-char newline"></span>\n');
+    }
 
     /**
      * Extracts variable names and structures from a Jinja template
@@ -927,8 +1044,12 @@ except Exception as e:
 result
             `);
             
-            // Set the main content
-            outputElement.textContent = result;
+            // Set the main content, checking for whitespace toggle
+            if (showWhitespaceToggle.checked) {
+                outputElement.innerHTML = renderWhitespace(result);
+            } else {
+                outputElement.textContent = result;
+            }
             outputElement.className = result.includes('Error:') ? 'error' : '';
         } catch (e) {
             outputElement.textContent = `Python execution error: ${e.message}`;
@@ -987,10 +1108,16 @@ result
         
         // Re-render
         update();
+
+        // Show feedback
+        const variableCount = Object.keys(newVariableStructures).length;
+        const message = variableCount > 0 ? `Found ${variableCount} variable${variableCount !== 1 ? 's' : ''}!` : 'No variables found!';
+        showButtonFeedback(this, message, 2000);
     });
 
     // Mode toggle button
     toggleModeBtn.addEventListener('click', function() {
+        const wasFormMode = isFormMode;
         isFormMode = !isFormMode;
         
         if (isFormMode) {
@@ -1030,6 +1157,10 @@ result
             const currentVars = getCurrentVariables();
             varsEditor.setValue(JSON.stringify(currentVars, null, 2));
         }
+
+        // Show feedback
+        const mode = isFormMode ? 'Form' : 'JSON';
+        showButtonFeedback(this, `Switched to ${mode}!`, 1500);
     });
 
     // Text wrap toggle
@@ -1037,17 +1168,105 @@ result
         const wrapMode = this.checked;
         jinjaEditor.setOption('lineWrapping', wrapMode);
         varsEditor.setOption('lineWrapping', wrapMode);
+        
+        // Show feedback
+        const message = wrapMode ? 'Text wrap enabled!' : 'Text wrap disabled!';
+        showToggleFeedback(this.parentElement, message);
     });
 
+    // Whitespace toggle
+    showWhitespaceToggle.addEventListener('change', function() {
+        update(); // Re-render the output with the new setting
+        const message = this.checked ? 'Whitespace visible' : 'Whitespace hidden';
+        showToggleFeedback(this.parentElement, message);
+    });
 
     // Auto rerender toggle
     autoRerenderToggle.addEventListener('change', function() {
         manualRerenderBtn.disabled = this.checked;
+        setupEventListeners();
+        
+        // Show feedback
+        const message = this.checked ? 'Auto rerender enabled!' : 'Auto rerender disabled!';
+        showToggleFeedback(this.parentElement, message);
     });
 
     // Manual rerender button
     manualRerenderBtn.addEventListener('click', function() {
         update();
+        showButtonFeedback(this, 'Rerendered!', 1000);
+    });
+
+    // Copy template button
+    copyTemplateBtn.addEventListener('click', async function() {
+        try {
+            const templateContent = jinjaEditor.getValue();
+            await navigator.clipboard.writeText(templateContent);
+            
+            // Visual feedback
+            const originalText = this.textContent;
+            this.textContent = 'Copied!';
+            this.style.background = '#4CAF50';
+            
+            setTimeout(() => {
+                this.textContent = originalText;
+                this.style.background = '#2196F3';
+            }, 1500);
+        } catch (err) {
+            // Fallback for older browsers
+            const textArea = document.createElement('textarea');
+            textArea.value = jinjaEditor.getValue();
+            document.body.appendChild(textArea);
+            textArea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textArea);
+            
+            // Visual feedback
+            const originalText = this.textContent;
+            this.textContent = 'Copied!';
+            this.style.background = '#4CAF50';
+            
+            setTimeout(() => {
+                this.textContent = originalText;
+                this.style.background = '#2196F3';
+            }, 1500);
+        }
+    });
+
+    // Copy output button
+    copyOutputBtn.addEventListener('click', async function() {
+        try {
+            const outputContent = outputElement.textContent;
+            await navigator.clipboard.writeText(outputContent);
+            
+            // Visual feedback
+            const originalText = this.textContent;
+            this.textContent = 'Copied!';
+            this.style.background = '#4CAF50';
+            
+            setTimeout(() => {
+                this.textContent = originalText;
+                this.style.background = '#2196F3';
+            }, 1500);
+        } catch (err) {
+            // Fallback for older browsers
+            const textArea = document.createElement('textarea');
+            textArea.value = outputElement.textContent;
+            document.body.appendChild(textArea);
+            textArea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textArea);
+            
+            // Visual feedback
+            const originalText = this.textContent;
+            this.textContent = 'Copied!';
+            this.style.background = '#4CAF50';
+            
+            setTimeout(() => {
+                this.textContent = originalText;
+                this.style.background = '#2196F3';
+            }, 1500);
+        }
     });
 
     // --- EVENT LISTENERS ---
@@ -1074,12 +1293,6 @@ result
             timeout = setTimeout(later, wait);
         };
     }
-
-    // Update event listeners when auto-rerender changes
-    autoRerenderToggle.addEventListener('change', function() {
-        manualRerenderBtn.disabled = this.checked;
-        setupEventListeners();
-    });
 
     // --- RESIZE FUNCTIONALITY ---
     
