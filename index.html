@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Live Jinja Parser</title>
+    <title>Live Jinja Parser (Python/Pyodide)</title>
+
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.25.1/full/pyodide.js"></script>
 
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/codemirror.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/theme/material-darker.min.css">
-
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/nunjucks/3.2.4/nunjucks.min.js"></script>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/codemirror.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/mode/jinja2/jinja2.min.js"></script>
@@ -331,11 +331,40 @@
             min-height: 100px;
             overflow: hidden;
         }
+        
+        /* Loading state */
+        #loader {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 1.2em;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 1000;
+            display: none;
+        }
+        
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.8);
+            z-index: 999;
+            display: none;
+        }
     </style>
 </head>
 <body>
 
-    <h1>Live Jinja Parser 🚀</h1>
+    <div class="loading-overlay" id="loading-overlay"></div>
+    <div id="loader">Loading Python Environment...</div>
+
+    <h1>Live Jinja Parser (Python/Pyodide) 🐍</h1>
     
     <div class="controls">
         <div class="control-group">
@@ -388,10 +417,20 @@
     </div>
 
 <script>
-    // Start with empty template and variables
-    const defaultTemplate = ``;
+    // Start with example template and variables
+    const defaultTemplate = `Hello, {{ user.name | title }}!
 
-    const defaultVars = {};
+{% for item in items %}- {{ item }}
+{% endfor %}
+
+{% if user.premium %}
+Welcome premium user!
+{% endif %}`;
+
+    const defaultVars = {
+        user: { name: "world", premium: true },
+        items: ["apple", "banana", "orange"]
+    };
     
     // --- EDITOR SETUP ---
     const commonEditorOptions = {
@@ -416,9 +455,12 @@
     varsEditor.setValue(JSON.stringify(defaultVars, null, 2));
     
     const outputElement = document.getElementById('output');
+    const loader = document.getElementById('loader');
+    const loadingOverlay = document.getElementById('loading-overlay');
 
-    // Nunjucks setup
-    nunjucks.configure({ autoescape: true });
+    // Pyodide setup
+    let pyodide = null;
+    let isInitialized = false;
 
     // --- CONTROL ELEMENTS ---
     const textWrapToggle = document.getElementById('text-wrap-toggle');
@@ -441,6 +483,28 @@
     let startY = 0;
     let startWidth = 0;
     let startHeight = 0;
+
+    // --- PYODIDE SETUP ---
+    
+    async function setupPyodide() {
+        try {
+            loader.style.display = 'block';
+            loadingOverlay.style.display = 'block';
+            
+            pyodide = await loadPyodide();
+            await pyodide.loadPackage("jinja2");
+            
+            isInitialized = true;
+            loader.style.display = 'none';
+            loadingOverlay.style.display = 'none';
+            
+            // Initial render after setup
+            update();
+        } catch (error) {
+            loader.textContent = `Failed to load Python environment: ${error.message}`;
+            loader.style.color = '#d32f2f';
+        }
+    }
 
     // --- CORE LOGIC ---
 
@@ -510,13 +574,13 @@
                 input.placeholder = `Enter value for ${varName}`;
             }
             
-            // Add event listener for auto-rerender
-            input.addEventListener('input', function() {
-                currentVariableValues[varName] = this.value;
-                if (autoRerenderToggle.checked) {
-                    update();
-                }
-            });
+                // Add event listener for auto-rerender
+                input.addEventListener('input', function() {
+                    currentVariableValues[varName] = this.value;
+                    if (autoRerenderToggle.checked) {
+                        debounce(update, 300)();
+                    }
+                });
             
             inputDiv.appendChild(label);
             inputDiv.appendChild(input);
@@ -561,7 +625,13 @@
     /**
      * The main function to update the rendering. It gets triggered on any change.
      */
-    function update() {
+    async function update() {
+        if (!pyodide || !isInitialized) {
+            outputElement.textContent = 'Python environment is still loading...';
+            outputElement.className = '';
+            return;
+        }
+
         const template = jinjaEditor.getValue();
         let context;
 
@@ -575,15 +645,40 @@
             return;
         }
 
-        // 2. Render the template with the context
+        // 2. Render the template with the context using Python Jinja2
         try {
-            const result = nunjucks.renderString(template, context);
+            const contextJson = JSON.stringify(context);
+            
+            // Escape template and context strings for Python
+            const escapedTemplate = template.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n');
+            const escapedContext = contextJson.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+            
+            const result = pyodide.runPython(`
+import jinja2
+import json
+
+try:
+    template_str = """${escapedTemplate}"""
+    context_str = """${escapedContext}"""
+    
+    template = jinja2.Template(template_str)
+    context = json.loads(context_str)
+    result = template.render(context)
+except jinja2.exceptions.TemplateError as e:
+    result = f"Jinja2 Template Error: {e}"
+except json.JSONDecodeError as e:
+    result = f"JSON Error: {e}"
+except Exception as e:
+    result = f"Error: {e}"
+
+result
+            `);
             
             // Set the main content
             outputElement.textContent = result;
-            outputElement.className = '';
+            outputElement.className = result.includes('Error:') ? 'error' : '';
         } catch (e) {
-            outputElement.textContent = e.message;
+            outputElement.textContent = `Python execution error: ${e.message}`;
             outputElement.className = 'error';
         }
     }
@@ -678,12 +773,25 @@
     // Conditional event listeners based on auto-rerender setting
     function setupEventListeners() {
         if (autoRerenderToggle.checked) {
-            jinjaEditor.on('change', update);
-            varsEditor.on('change', update);
+            jinjaEditor.on('change', debounce(update, 300));
+            varsEditor.on('change', debounce(update, 300));
         } else {
-            jinjaEditor.off('change', update);
-            varsEditor.off('change', update);
+            jinjaEditor.off('change', debounce(update, 300));
+            varsEditor.off('change', debounce(update, 300));
         }
+    }
+    
+    // Debounce function to prevent too frequent updates
+    function debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
     }
 
     // Update event listeners when auto-rerender changes
@@ -808,8 +916,8 @@
     setInitialSizes();
     setupEventListeners();
 
-    // Initial render on page load
-    update();
+    // Start Pyodide and initial render
+    setupPyodide();
 
 </script>
 
