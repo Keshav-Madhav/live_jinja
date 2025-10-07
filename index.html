@@ -33,21 +33,80 @@
         h1 {
             text-align: center;
             color: var(--header-color);
-            margin: 15px 0 10px;
+            margin: 10px 0 5px;
             font-weight: 500;
-            font-size: 20px;
+            font-size: 18px;
         }
-        .controls {
+        .container {
             display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 20px;
-            padding: 10px;
+            flex-grow: 1;
+            gap: 10px;
+            padding: 0 10px 10px;
+            min-width: 0; /* Allow flex shrinking */
+            overflow: hidden;
+        }
+        .left-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            height: calc(100vh - 90px); /* Adjusted for smaller header */
+            min-width: 0; /* Allow flex shrinking */
+            overflow: hidden;
+        }
+        .right-panel {
+            flex: 1;
+            height: calc(100vh - 90px); /* Adjusted for smaller header */
+            min-width: 0; /* Allow flex shrinking */
+            overflow: hidden;
+        }
+        .pane {
+            display: flex;
+            flex-direction: column;
             background: var(--pane-background);
             border: 1px solid var(--border-color);
             border-radius: 8px;
-            margin: 0 10px 10px;
+            overflow: hidden;
             box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            min-height: 0; /* Allow flex items to shrink */
+            min-width: 0; /* Allow flex items to shrink horizontally */
+            width: 100%;
+        }
+        .template-pane {
+            flex: 2;
+            min-height: 0;
+        }
+        .variables-pane {
+            flex: 1;
+            min-height: 0;
+        }
+        .pane h2 {
+            margin: 0;
+            padding: 12px;
+            font-size: 14px;
+            background: var(--pane-background);
+            border-bottom: 1px solid var(--border-color);
+            color: var(--header-color);
+            font-weight: 600;
+        }
+        .pane-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--pane-background);
+            border-bottom: 1px solid var(--border-color);
+            padding: 12px;
+        }
+        .pane-header h2 {
+            margin: 0;
+            padding: 0;
+            border-bottom: none;
+            background: none;
+        }
+        .header-controls {
+            display: flex;
+            align-items: center;
+            gap: 12px;
         }
         .control-group {
             display: flex;
@@ -115,77 +174,6 @@
             font-size: 12px;
             color: var(--header-color);
             font-weight: 500;
-        }
-        .container {
-            display: flex;
-            flex-grow: 1;
-            gap: 10px;
-            padding: 0 10px 10px;
-            min-width: 0; /* Allow flex shrinking */
-            overflow: hidden;
-        }
-        .left-panel {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            height: calc(100vh - 140px); /* Adjusted for controls */
-            min-width: 0; /* Allow flex shrinking */
-            overflow: hidden;
-        }
-        .right-panel {
-            flex: 1;
-            height: calc(100vh - 140px); /* Adjusted for controls */
-            min-width: 0; /* Allow flex shrinking */
-            overflow: hidden;
-        }
-        .pane {
-            display: flex;
-            flex-direction: column;
-            background: var(--pane-background);
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            overflow: hidden;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-            min-height: 0; /* Allow flex items to shrink */
-            min-width: 0; /* Allow flex items to shrink horizontally */
-            width: 100%;
-        }
-        .template-pane {
-            flex: 2;
-            min-height: 0;
-        }
-        .variables-pane {
-            flex: 1;
-            min-height: 0;
-        }
-        .pane h2 {
-            margin: 0;
-            padding: 12px;
-            font-size: 14px;
-            background: var(--pane-background);
-            border-bottom: 1px solid var(--border-color);
-            color: var(--header-color);
-            font-weight: 600;
-        }
-        .pane-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            background: var(--pane-background);
-            border-bottom: 1px solid var(--border-color);
-            padding: 12px;
-        }
-        .pane-header h2 {
-            margin: 0;
-            padding: 0;
-            border-bottom: none;
-            background: none;
-        }
-        .header-controls {
-            display: flex;
-            align-items: center;
-            gap: 12px;
         }
         .header-btn {
             padding: 4px 8px;
@@ -364,18 +352,7 @@
     <div class="loading-overlay" id="loading-overlay"></div>
     <div id="loader">Loading Python Environment...</div>
 
-    <h1>Live Jinja Parser (Python/Pyodide) 🐍</h1>
-    
-    <div class="controls">
-        <div class="control-group">
-            <span class="control-label">Auto Rerender</span>
-            <label class="switch">
-                <input type="checkbox" id="auto-rerender-toggle" checked>
-                <span class="slider"></span>
-            </label>
-        </div>
-        <button class="rerender-btn" id="manual-rerender">Rerender</button>
-    </div>
+    <h1>Live Jinja Parser (Pyodide) 🐍</h1>
     
     <div class="resizable-container" id="main-container">
         <div class="resizable-left-panel" id="left-panel">
@@ -410,26 +387,30 @@
         <div class="resize-handle resize-handle-vertical" id="vertical-resize"></div>
         <div class="resizable-right-panel" id="right-panel">
             <div class="pane" id="output-pane">
+                <div class="pane-header">
                 <h2>Output</h2>
+                    <div class="header-controls">
+                        <div class="control-group">
+                            <span class="control-label">Auto Rerender</span>
+                            <label class="switch">
+                                <input type="checkbox" id="auto-rerender-toggle" checked>
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                        <button class="rerender-btn" id="manual-rerender" disabled>Rerender</button>
+                    </div>
+                </div>
                 <pre id="output"></pre>
             </div>
         </div>
     </div>
 
 <script>
-    // Start with example template and variables
-    const defaultTemplate = `Hello, {{ user.name | title }}!
-
-{% for item in items %}- {{ item }}
-{% endfor %}
-
-{% if user.premium %}
-Welcome premium user!
-{% endif %}`;
+    // Start with minimal template and variables
+    const defaultTemplate = `Hello {{ name }}!`;
 
     const defaultVars = {
-        user: { name: "world", premium: true },
-        items: ["apple", "banana", "orange"]
+        name: "World"
     };
     
     // --- EDITOR SETUP ---
@@ -509,82 +490,354 @@ Welcome premium user!
     // --- CORE LOGIC ---
 
     /**
-     * Extracts variable names from a Jinja template
+     * Extracts variable names and structures from a Jinja template
      */
     function extractVariablesFromTemplate(template) {
-        const variables = new Set();
+        const variableStructures = {};
         
-        // Match {{ variable_name }} patterns
-        const variablePattern = /\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*)\s*\}\}/g;
+        // Helper function to set nested property
+        function setNestedProperty(obj, path, value) {
+            const keys = path.split('.');
+            let current = obj;
+            
+            for (let i = 0; i < keys.length - 1; i++) {
+                const key = keys[i];
+                if (!(key in current)) {
+                    // Determine if next key is numeric (array index) or not
+                    const nextKey = keys[i + 1];
+                    current[key] = /^\d+$/.test(nextKey) ? [] : {};
+                }
+                current = current[key];
+            }
+            
+            const lastKey = keys[keys.length - 1];
+            if (Array.isArray(current) && /^\d+$/.test(lastKey)) {
+                const index = parseInt(lastKey);
+                while (current.length <= index) {
+                    current.push('');
+                }
+                current[index] = value;
+            } else {
+                current[lastKey] = value;
+            }
+        }
+        
+        // 1. Match {{ variable.property }} and {{ variable.property.nested }} patterns
+        const variablePattern = /\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*)(?:\s*\|\s*[^}]+)?\s*\}\}/g;
         let match;
         
         while ((match = variablePattern.exec(template)) !== null) {
-            // Only take the root variable name (before any dots)
-            const rootVar = match[1].split('.')[0];
-            variables.add(rootVar);
+            const fullPath = match[1];
+            const rootVar = fullPath.split('.')[0];
+            
+            if (fullPath.includes('.')) {
+                // This is an object property access
+                if (!(rootVar in variableStructures)) {
+                    variableStructures[rootVar] = {};
+                }
+                setNestedProperty(variableStructures, fullPath, '');
+            } else {
+                // Simple variable
+                if (!(rootVar in variableStructures)) {
+                    variableStructures[rootVar] = '';
+                }
+            }
         }
         
-        // Match {% for item in variable %} patterns
+        // 2. Match {% for item in variable %} patterns - indicates variable is a list/array
         const forPattern = /\{\%\s*for\s+\w+\s+in\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\%\}/g;
         while ((match = forPattern.exec(template)) !== null) {
-            variables.add(match[1]);
+            const varName = match[1];
+            if (!(varName in variableStructures)) {
+                variableStructures[varName] = ['']; // Single empty string for lists
+            } else if (!Array.isArray(variableStructures[varName]) && typeof variableStructures[varName] !== 'object') {
+                // Convert to array if it was a simple string
+                variableStructures[varName] = [''];
+            }
         }
         
-        // Match {% if variable %} patterns
-        const ifPattern = /\{\%\s*if\s+([a-zA-Z_][a-zA-Z0-9_]*)/g;
+        // 3. Match {% for key, value in variable.items() %} patterns - indicates variable is a dict
+        const dictForPattern = /\{\%\s*for\s+\w+,\s*\w+\s+in\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\.\s*items\s*\(\s*\)\s*\%\}/g;
+        while ((match = dictForPattern.exec(template)) !== null) {
+            const varName = match[1];
+            if (!(varName in variableStructures)) {
+                variableStructures[varName] = { key1: 'value1', key2: 'value2' };
+            }
+        }
+        
+        // 4. Match {% if variable %} and {% if variable.property %} patterns
+        const ifPattern = /\{\%\s*if\s+([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*)/g;
         while ((match = ifPattern.exec(template)) !== null) {
-            variables.add(match[1]);
+            const fullPath = match[1];
+            const rootVar = fullPath.split('.')[0];
+            
+            if (fullPath.includes('.')) {
+                if (!(rootVar in variableStructures)) {
+                    variableStructures[rootVar] = {};
+                }
+                setNestedProperty(variableStructures, fullPath, true); // Boolean for if conditions
+            } else {
+                if (!(rootVar in variableStructures)) {
+                    variableStructures[rootVar] = true; // Default boolean for if conditions
+                }
+            }
         }
         
-        return variables;
+        // 5. Match array access patterns like {{ variable[0] }} or {{ variable.items[0] }}
+        const arrayAccessPattern = /\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*)\s*\[\s*(\d+)\s*\](?:\s*\|\s*[^}]+)?\s*\}\}/g;
+        while ((match = arrayAccessPattern.exec(template)) !== null) {
+            const basePath = match[1];
+            const index = parseInt(match[2]);
+            const rootVar = basePath.split('.')[0];
+            
+            if (!(rootVar in variableStructures)) {
+                variableStructures[rootVar] = basePath.includes('.') ? {} : [];
+            }
+            
+            // Create array structure
+            const arrayPath = basePath + '.' + index;
+            setNestedProperty(variableStructures, arrayPath, '');
+        }
+        
+        // 6. Look for loop variables that access properties: {% for item in items %}{{ item.name }}{% endfor %}
+        const loopWithPropertyPattern = /\{\%\s*for\s+(\w+)\s+in\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\%\}(.*?)\{\%\s*endfor\s*\%\}/gs;
+        while ((match = loopWithPropertyPattern.exec(template)) !== null) {
+            const loopVar = match[1];
+            const arrayVar = match[2];
+            const loopContent = match[3];
+            
+            // Find properties accessed on the loop variable
+            const loopVarPattern = new RegExp(`\\{\\{\\s*${loopVar}\\.([a-zA-Z_][a-zA-Z0-9_]*)`, 'g');
+            let propMatch;
+            const itemStructure = {};
+            
+            while ((propMatch = loopVarPattern.exec(loopContent)) !== null) {
+                itemStructure[propMatch[1]] = '';
+            }
+            
+            if (Object.keys(itemStructure).length > 0) {
+                // Create array of objects
+                variableStructures[arrayVar] = [itemStructure, itemStructure];
+            }
+        }
+        
+        return variableStructures;
     }
 
     /**
      * Creates form inputs for extracted variables
      */
-    function createVariableForm(variables) {
+    function createVariableForm(variableStructures) {
         variablesForm.innerHTML = '';
         
-        if (variables.size === 0) {
+        if (Object.keys(variableStructures).length === 0) {
             variablesForm.innerHTML = '<p style="color: #666; font-style: italic;">No variables found in template. Use {{ variable_name }} syntax.</p>';
             return;
         }
         
-        variables.forEach(varName => {
-            const inputDiv = document.createElement('div');
-            inputDiv.className = 'variable-input';
+        // Helper function to create form inputs recursively
+        function createInputsForStructure(structure, baseName = '', level = 0) {
+            const container = document.createElement('div');
+            container.style.marginLeft = `${level * 15}px`;
             
-            const label = document.createElement('label');
-            label.textContent = varName;
-            label.setAttribute('for', `var-${varName}`);
-            
-            // Determine if we should use textarea or input based on existing value
-            const existingValue = currentVariableValues[varName] || '';
-            const isMultiline = existingValue.includes('\n') || existingValue.length > 50;
-            
-            const input = document.createElement(isMultiline ? 'textarea' : 'input');
-            input.id = `var-${varName}`;
-            input.name = varName;
-            input.value = existingValue;
-            
-            if (!isMultiline) {
-                input.type = 'text';
-                input.placeholder = `Enter value for ${varName}`;
-            } else {
-                input.placeholder = `Enter value for ${varName}`;
-            }
-            
-                // Add event listener for auto-rerender
-                input.addEventListener('input', function() {
-                    currentVariableValues[varName] = this.value;
+            if (Array.isArray(structure)) {
+                // Handle arrays
+                const label = document.createElement('label');
+                label.textContent = `${baseName} (Array)`;
+                label.style.fontWeight = 'bold';
+                label.style.color = '#2196F3';
+                label.style.display = 'block';
+                label.style.marginBottom = '5px';
+                container.appendChild(label);
+                
+                const textarea = document.createElement('textarea');
+                textarea.id = `var-${baseName}`;
+                textarea.name = baseName;
+                textarea.value = JSON.stringify(structure, null, 2);
+                textarea.placeholder = `JSON array for ${baseName}`;
+                textarea.style.width = '100%';
+                textarea.style.minHeight = '80px';
+                textarea.style.padding = '6px 8px';
+                textarea.style.border = '1px solid #e0e0e0';
+                textarea.style.borderRadius = '4px';
+                textarea.style.fontSize = '12px';
+                textarea.style.fontFamily = '"Menlo", "Consolas", monospace';
+                textarea.style.marginBottom = '15px';
+                textarea.style.resize = 'vertical';
+                
+                textarea.addEventListener('input', function() {
+                    try {
+                        const parsed = JSON.parse(this.value);
+                        currentVariableValues[baseName] = parsed;
+                        this.style.borderColor = '#e0e0e0';
+                    } catch (e) {
+                        this.style.borderColor = '#d32f2f';
+                        currentVariableValues[baseName] = this.value;
+                    }
                     if (autoRerenderToggle.checked) {
                         debounce(update, 300)();
                     }
                 });
+                
+                container.appendChild(textarea);
+                
+            } else if (typeof structure === 'object' && structure !== null) {
+                // Handle objects
+                if (baseName) {
+                    const label = document.createElement('label');
+                    label.textContent = `${baseName} (Object)`;
+                    label.style.fontWeight = 'bold';
+                    label.style.color = '#4CAF50';
+                    label.style.display = 'block';
+                    label.style.marginBottom = '5px';
+                    container.appendChild(label);
+                }
+                
+                // Check if it's a simple object (all values are primitives)
+                const isSimpleObject = Object.values(structure).every(val => 
+                    typeof val === 'string' || typeof val === 'number' || typeof val === 'boolean'
+                );
+                
+                if (isSimpleObject && Object.keys(structure).length <= 5) {
+                    // Create individual inputs for simple objects
+                    Object.entries(structure).forEach(([key, value]) => {
+            const inputDiv = document.createElement('div');
+            inputDiv.className = 'variable-input';
+                        inputDiv.style.marginLeft = `${(level + 1) * 15}px`;
+            
+            const label = document.createElement('label');
+                        label.textContent = `${baseName ? baseName + '.' : ''}${key}`;
+                        label.style.fontSize = '11px';
+                        label.style.color = '#666';
+                        
+                        const input = document.createElement('input');
+                        input.type = typeof value === 'boolean' ? 'checkbox' : 'text';
+                        input.id = `var-${baseName ? baseName + '.' : ''}${key}`;
+                        input.name = `${baseName ? baseName + '.' : ''}${key}`;
+                        
+                        if (typeof value === 'boolean') {
+                            input.checked = value;
+                            input.addEventListener('change', function() {
+                                const path = this.name.split('.');
+                                let current = currentVariableValues;
+                                for (let i = 0; i < path.length - 1; i++) {
+                                    if (!(path[i] in current)) current[path[i]] = {};
+                                    current = current[path[i]];
+                                }
+                                current[path[path.length - 1]] = this.checked;
+                                if (autoRerenderToggle.checked) {
+                                    debounce(update, 300)();
+                                }
+                            });
+                        } else {
+                            input.value = value;
+                            input.addEventListener('input', function() {
+                                const path = this.name.split('.');
+                                let current = currentVariableValues;
+                                for (let i = 0; i < path.length - 1; i++) {
+                                    if (!(path[i] in current)) current[path[i]] = {};
+                                    current = current[path[i]];
+                                }
+                                current[path[path.length - 1]] = this.value;
+                                if (autoRerenderToggle.checked) {
+                                    debounce(update, 300)();
+                                }
+                            });
+                        }
+                        
+                        inputDiv.appendChild(label);
+                        inputDiv.appendChild(input);
+                        container.appendChild(inputDiv);
+                    });
+            } else {
+                    // Complex object - use JSON textarea
+                    const textarea = document.createElement('textarea');
+                    textarea.id = `var-${baseName}`;
+                    textarea.name = baseName;
+                    textarea.value = JSON.stringify(structure, null, 2);
+                    textarea.placeholder = `JSON object for ${baseName}`;
+                    textarea.style.width = '100%';
+                    textarea.style.minHeight = '100px';
+                    textarea.style.padding = '6px 8px';
+                    textarea.style.border = '1px solid #e0e0e0';
+                    textarea.style.borderRadius = '4px';
+                    textarea.style.fontSize = '12px';
+                    textarea.style.fontFamily = '"Menlo", "Consolas", monospace';
+                    textarea.style.marginBottom = '15px';
+                    textarea.style.resize = 'vertical';
+                    
+                    textarea.addEventListener('input', function() {
+                        try {
+                            const parsed = JSON.parse(this.value);
+                            currentVariableValues[baseName] = parsed;
+                            this.style.borderColor = '#e0e0e0';
+                        } catch (e) {
+                            this.style.borderColor = '#d32f2f';
+                            currentVariableValues[baseName] = this.value;
+                        }
+                        if (autoRerenderToggle.checked) {
+                            debounce(update, 300)();
+                        }
+                    });
+                    
+                    container.appendChild(textarea);
+                }
+                
+            } else {
+                // Handle primitive values
+                const inputDiv = document.createElement('div');
+                inputDiv.className = 'variable-input';
+                
+                const label = document.createElement('label');
+                label.textContent = baseName;
+                label.setAttribute('for', `var-${baseName}`);
+                
+                const input = document.createElement(typeof structure === 'boolean' ? 'input' : 
+                    (typeof structure === 'string' && structure.length > 50) ? 'textarea' : 'input');
+                
+                input.id = `var-${baseName}`;
+                input.name = baseName;
+                
+                if (typeof structure === 'boolean') {
+                    input.type = 'checkbox';
+                    input.checked = structure;
+                    input.addEventListener('change', function() {
+                        currentVariableValues[baseName] = this.checked;
+                        if (autoRerenderToggle.checked) {
+                            debounce(update, 300)();
+                        }
+                    });
+                } else {
+                    if (input.tagName === 'TEXTAREA') {
+                        input.value = structure;
+                        input.style.minHeight = '60px';
+                        input.style.resize = 'vertical';
+                    } else {
+                        input.type = 'text';
+                        input.value = structure;
+                        input.placeholder = `Enter value for ${baseName}`;
+                    }
+                    
+            input.addEventListener('input', function() {
+                        currentVariableValues[baseName] = this.value;
+                if (autoRerenderToggle.checked) {
+                            debounce(update, 300)();
+                }
+            });
+                }
             
             inputDiv.appendChild(label);
             inputDiv.appendChild(input);
-            variablesForm.appendChild(inputDiv);
+                container.appendChild(inputDiv);
+            }
+            
+            return container;
+        }
+        
+        // Create inputs for each top-level variable
+        Object.entries(variableStructures).forEach(([varName, structure]) => {
+            const container = createInputsForStructure(structure, varName);
+            variablesForm.appendChild(container);
         });
     }
 
@@ -688,29 +941,49 @@ result
     // Extract variables button
     extractVariablesBtn.addEventListener('click', function() {
         const template = jinjaEditor.getValue();
-        const newVariables = extractVariablesFromTemplate(template);
+        const newVariableStructures = extractVariablesFromTemplate(template);
         
         // Get current values from the active mode (form or JSON)
         const currentValues = getCurrentVariables();
         
-        // Preserve existing values for variables that still exist, only add empty for new ones
-        const newVariableValues = {};
-        newVariables.forEach(varName => {
-            // If variable exists in current values, keep it; otherwise set to empty
-            newVariableValues[varName] = currentValues.hasOwnProperty(varName) ? currentValues[varName] : '';
+        // Merge existing values with new structure, preserving user data where possible
+        function mergeStructures(newStruct, existingValues) {
+            if (Array.isArray(newStruct)) {
+                return existingValues && Array.isArray(existingValues) ? existingValues : newStruct;
+            } else if (typeof newStruct === 'object' && newStruct !== null) {
+                const merged = {};
+                Object.keys(newStruct).forEach(key => {
+                    if (existingValues && typeof existingValues === 'object' && key in existingValues) {
+                        merged[key] = mergeStructures(newStruct[key], existingValues[key]);
+                    } else {
+                        merged[key] = newStruct[key];
+                    }
+                });
+                return merged;
+            } else {
+                return existingValues !== undefined ? existingValues : newStruct;
+            }
+        }
+        
+        const mergedVariables = {};
+        Object.keys(newVariableStructures).forEach(varName => {
+            mergedVariables[varName] = mergeStructures(
+                newVariableStructures[varName], 
+                currentValues[varName]
+            );
         });
         
         // Update state
-        extractedVariables = newVariables;
-        currentVariableValues = newVariableValues;
+        extractedVariables = new Set(Object.keys(newVariableStructures));
+        currentVariableValues = mergedVariables;
         
         // If in form mode, recreate the form
         if (isFormMode) {
-            createVariableForm(newVariables);
+            createVariableForm(newVariableStructures);
         }
         
         // Update JSON editor to reflect current values
-        varsEditor.setValue(JSON.stringify(newVariableValues, null, 2));
+        varsEditor.setValue(JSON.stringify(mergedVariables, null, 2));
         
         // Re-render
         update();
@@ -731,13 +1004,21 @@ result
             try {
                 const currentVars = JSON.parse(varsEditor.getValue() || '{}');
                 currentVariableValues = currentVars;
+                
+                // Convert to the structure format expected by createVariableForm
+                const variableStructures = {};
+                Object.keys(currentVars).forEach(key => {
+                    variableStructures[key] = currentVars[key];
+                });
+                
                 extractedVariables = new Set(Object.keys(currentVars));
-            } catch (e) {
-                // If JSON is invalid, keep existing state
-            }
             
             // Create form with current variables
-            createVariableForm(extractedVariables);
+                createVariableForm(variableStructures);
+            } catch (e) {
+                // If JSON is invalid, keep existing state or create empty form
+                createVariableForm({});
+            }
         } else {
             // Switch to JSON mode
             varsEditor.getWrapperElement().style.display = 'block';
