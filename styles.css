@@ -1,0 +1,362 @@
+:root {
+    --editor-background: #212121;
+    --pane-background: #fdfdfd;
+    --border-color: #e0e0e0;
+    --header-color: #424242;
+}
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    margin: 0;
+    background-color: #f4f4f9;
+    color: #333;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+}
+h1 {
+    text-align: center;
+    color: var(--header-color);
+    margin: 10px 0 5px;
+    font-weight: 500;
+    font-size: 18px;
+}
+.container {
+    display: flex;
+    flex-grow: 1;
+    gap: 10px;
+    padding: 0 10px 10px;
+    min-width: 0; /* Allow flex shrinking */
+    overflow: hidden;
+}
+.left-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    height: calc(100vh - 90px); /* Adjusted for smaller header */
+    min-width: 0; /* Allow flex shrinking */
+    overflow: hidden;
+}
+.right-panel {
+    flex: 1;
+    height: calc(100vh - 90px); /* Adjusted for smaller header */
+    min-width: 0; /* Allow flex shrinking */
+    overflow: hidden;
+}
+.pane {
+    display: flex;
+    flex-direction: column;
+    background: var(--pane-background);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    min-height: 0; /* Allow flex items to shrink */
+    min-width: 0; /* Allow flex items to shrink horizontally */
+    width: 100%;
+}
+.template-pane {
+    flex: 2;
+    min-height: 0;
+}
+.variables-pane {
+    flex: 1;
+    min-height: 0;
+}
+.pane h2 {
+    margin: 0;
+    padding: 12px;
+    font-size: 14px;
+    background: var(--pane-background);
+    border-bottom: 1px solid var(--border-color);
+    color: var(--header-color);
+    font-weight: 600;
+}
+.pane-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--pane-background);
+    border-bottom: 1px solid var(--border-color);
+    padding: 12px;
+}
+.pane-header h2 {
+    margin: 0;
+    padding: 0;
+    border-bottom: none;
+    background: none;
+}
+.header-controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+.control-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.switch {
+    position: relative;
+    display: inline-block;
+    width: 44px;
+    height: 24px;
+}
+.switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+.slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    transition: .4s;
+    border-radius: 24px;
+}
+.slider:before {
+    position: absolute;
+    content: "";
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: .4s;
+    border-radius: 50%;
+}
+input:checked + .slider {
+    background-color: #2196F3;
+}
+input:checked + .slider:before {
+    transform: translateX(20px);
+}
+.rerender-btn {
+    padding: 6px 12px;
+    background: #2196F3;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 500;
+    transition: background 0.3s;
+}
+.rerender-btn:hover {
+    background: #1976D2;
+}
+.rerender-btn:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+}
+.control-label {
+    font-size: 12px;
+    color: var(--header-color);
+    font-weight: 500;
+}
+.header-btn {
+    padding: 4px 8px;
+    background: #2196F3;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 500;
+    transition: background 0.3s;
+}
+.header-btn:hover {
+    background: #1976D2;
+}
+.CodeMirror {
+    flex-grow: 1;
+    height: auto;
+    font-size: 12px;
+    min-height: 0;
+    width: 100%;
+    max-width: 100%;
+}
+.CodeMirror-scroll {
+    overflow-x: auto !important;
+    overflow-y: auto !important;
+    max-width: 100%;
+}
+.CodeMirror-lines {
+    max-width: 100%;
+}
+#output-pane {
+    height: 100%;
+    min-height: 0;
+}
+#output {
+    flex-grow: 1;
+    padding: 15px;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    overflow: auto;
+    font-family: "Menlo", "Consolas", monospace;
+    font-size: 12px;
+    line-height: 1.6;
+    height: 100%;
+    min-height: 0;
+    position: relative;
+}
+.error {
+    color: #d32f2f;
+    font-weight: bold;
+}
+.variable-input {
+    margin-bottom: 15px;
+}
+.variable-input label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 500;
+    color: var(--header-color);
+    font-size: 12px;
+}
+.variable-input input, .variable-input textarea {
+    width: 100%;
+    padding: 6px 8px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    font-size: 12px;
+    font-family: "Menlo", "Consolas", monospace;
+    background: white;
+    box-sizing: border-box;
+}
+.variable-input textarea {
+    min-height: 60px;
+    resize: vertical;
+}
+.variable-input input:focus, .variable-input textarea:focus {
+    outline: none;
+    border-color: #2196F3;
+    box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.2);
+}
+.form-mode-toggle {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    background: #f8f9fa;
+    border-bottom: 1px solid var(--border-color);
+    font-size: 12px;
+}
+.mode-switch {
+    background: #2196F3;
+    color: white;
+    cursor: pointer;
+    text-decoration: none;
+    font-size: 11px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    border: none;
+    font-weight: 500;
+    transition: background 0.3s;
+}
+.mode-switch:hover {
+    background: #1976D2;
+}
+
+/* Resize handles */
+.resize-handle {
+    background: transparent;
+    transition: background 0.2s;
+}
+.resize-handle:hover {
+    background: rgba(33, 150, 243, 0.5);
+}
+.resize-handle-horizontal {
+    height: 4px;
+    cursor: row-resize;
+    width: 100%;
+}
+.resize-handle-vertical {
+    width: 4px;
+    cursor: col-resize;
+    height: 100%;
+}
+
+/* Container adjustments for resizing */
+.resizable-container {
+    display: flex;
+    flex-grow: 1;
+    gap: 0;
+    padding: 0 10px 10px;
+    min-width: 0;
+    overflow: hidden;
+}
+.resizable-left-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    min-width: 200px;
+    max-width: calc(100vw - 250px);
+    overflow: hidden;
+}
+.resizable-right-panel {
+    min-width: 200px;
+    overflow: hidden;
+}
+.resizable-template-pane {
+    min-height: 100px;
+    overflow: hidden;
+}
+.resizable-variables-pane {
+    min-height: 100px;
+    overflow: hidden;
+}
+
+/* Loading state */
+#loader {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 1.2em;
+    background: rgba(255, 255, 255, 0.9);
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    z-index: 1000;
+    display: none;
+}
+
+.loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.8);
+    z-index: 999;
+    display: none;
+}
+
+/* --- UPDATED WHITESPACE STYLING --- */
+.whitespace-char {
+    /* Use relative positioning to anchor the pseudo-element */
+    position: relative;
+}
+.whitespace-char::before {
+    /* Position the symbol absolutely so it doesn't affect layout */
+    position: absolute;
+    color: #757575;
+    opacity: 0.6;
+    /* Prevent the symbols from being selected with the text */
+    pointer-events: none;
+}
+.whitespace-char.space::before {
+    content: '·';
+}
+.whitespace-char.tab::before {
+    content: '→';
+}
+.whitespace-char.newline::before {
+    content: '↵';
+}
