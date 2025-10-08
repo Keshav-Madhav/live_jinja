@@ -52,6 +52,10 @@ let isFormMode = false;
 let extractedVariables = new Set();
 let currentVariableValues = {};
 
+// Store debounced function references for proper event listener removal
+let debouncedUpdateFromJinja = null;
+let debouncedUpdateFromVars = null;
+
 // --- RESIZE STATE ---
 let isResizing = false;
 let resizeType = null;
@@ -869,12 +873,26 @@ copyOutputBtn.addEventListener('click', async function() {
 // --- EVENT LISTENERS ---
 // Conditional event listeners based on auto-rerender setting
 function setupEventListeners() {
+    // Remove any existing listeners first
+    if (debouncedUpdateFromJinja) {
+        jinjaEditor.off('change', debouncedUpdateFromJinja);
+    }
+    if (debouncedUpdateFromVars) {
+        varsEditor.off('change', debouncedUpdateFromVars);
+    }
+    
     if (autoRerenderToggle.checked) {
-        jinjaEditor.on('change', debounce(update, 300));
-        varsEditor.on('change', debounce(update, 300));
+        // Create new debounced functions and store references
+        debouncedUpdateFromJinja = debounce(update, 300);
+        debouncedUpdateFromVars = debounce(update, 300);
+        
+        // Add the event listeners
+        jinjaEditor.on('change', debouncedUpdateFromJinja);
+        varsEditor.on('change', debouncedUpdateFromVars);
     } else {
-        jinjaEditor.off('change', debounce(update, 300));
-        varsEditor.off('change', debounce(update, 300));
+        // Clear the references when disabled
+        debouncedUpdateFromJinja = null;
+        debouncedUpdateFromVars = null;
     }
 }
 
