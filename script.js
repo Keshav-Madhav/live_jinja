@@ -161,6 +161,7 @@ function renderWhitespace(text) {
  */
 function extractVariablesFromTemplate(template) {
     const variableStructures = {};
+    const referencedVariables = new Set(); // Track variables that are referenced (not just assigned)
     
     // Helper function to set nested property
     function setNestedProperty(obj, path, value) {
@@ -188,6 +189,44 @@ function extractVariablesFromTemplate(template) {
             current[lastKey] = value;
         }
     }
+
+    // Helper function to safely set variable without overriding existing complex types
+    function safeSetVariable(varName, newValue, allowOverride = false) {
+        if (!(varName in variableStructures)) {
+            variableStructures[varName] = newValue;
+        } else if (allowOverride) {
+            // Only override if the existing value is a simple type and new value is complex
+            const existing = variableStructures[varName];
+            const isExistingSimple = typeof existing === 'string' || typeof existing === 'boolean' || typeof existing === 'number';
+            const isNewComplex = typeof newValue === 'object' && newValue !== null;
+            
+            if (isExistingSimple && isNewComplex) {
+                variableStructures[varName] = newValue;
+            }
+        }
+    }
+
+    // 0. First pass: Extract {% set %} patterns to identify assignments vs references
+    const setPattern = /\{\%\s*set\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*)\s*\%\}/g;
+    let setMatch;
+    
+    while ((setMatch = setPattern.exec(template)) !== null) {
+        const assignedVar = setMatch[1]; // This is a reference, not extracted
+        const sourceVar = setMatch[2];   // This should be extracted
+        
+        // Mark the source variable for extraction
+        const rootSourceVar = sourceVar.split('.')[0];
+        referencedVariables.add(rootSourceVar);
+        
+        if (sourceVar.includes('.')) {
+            // Source is an object property access
+            safeSetVariable(rootSourceVar, {});
+            setNestedProperty(variableStructures, sourceVar, '');
+        } else {
+            // Simple source variable
+            safeSetVariable(rootSourceVar, '');
+        }
+    }
     
     // 1. Match {{ variable.property }} and {{ variable.property.nested }} patterns
     const variablePattern = /\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*)(?:\s*\|\s*[^}]+)?\s*\}\}/g;
@@ -196,18 +235,15 @@ function extractVariablesFromTemplate(template) {
     while ((match = variablePattern.exec(template)) !== null) {
         const fullPath = match[1];
         const rootVar = fullPath.split('.')[0];
+        referencedVariables.add(rootVar);
         
         if (fullPath.includes('.')) {
             // This is an object property access
-            if (!(rootVar in variableStructures)) {
-                variableStructures[rootVar] = {};
-            }
+            safeSetVariable(rootVar, {}, true);
             setNestedProperty(variableStructures, fullPath, '');
         } else {
             // Simple variable
-            if (!(rootVar in variableStructures)) {
-                variableStructures[rootVar] = '';
-            }
+            safeSetVariable(rootVar, '');
         }
     }
     
@@ -215,6 +251,8 @@ function extractVariablesFromTemplate(template) {
     const forPattern = /\{\%\s*for\s+\w+\s+in\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\%\}/g;
     while ((match = forPattern.exec(template)) !== null) {
         const varName = match[1];
+        referencedVariables.add(varName);
+        
         if (!(varName in variableStructures)) {
             variableStructures[varName] = ['']; // Single empty string for lists
         } else if (!Array.isArray(variableStructures[varName]) && typeof variableStructures[varName] !== 'object') {
@@ -227,9 +265,9 @@ function extractVariablesFromTemplate(template) {
     const dictForPattern = /\{\%\s*for\s+\w+,\s*\w+\s+in\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\.\s*items\s*\(\s*\)\s*\%\}/g;
     while ((match = dictForPattern.exec(template)) !== null) {
         const varName = match[1];
-        if (!(varName in variableStructures)) {
-            variableStructures[varName] = { key1: 'value1', key2: 'value2' };
-        }
+        referencedVariables.add(varName);
+        
+        safeSetVariable(varName, { key1: 'value1', key2: 'value2' }, true);
     }
     
     // 4. Match {% if variable %} and {% if variable.property %} patterns
@@ -237,16 +275,18 @@ function extractVariablesFromTemplate(template) {
     while ((match = ifPattern.exec(template)) !== null) {
         const fullPath = match[1];
         const rootVar = fullPath.split('.')[0];
+        referencedVariables.add(rootVar);
         
         if (fullPath.includes('.')) {
-            if (!(rootVar in variableStructures)) {
-                variableStructures[rootVar] = {};
-            }
+            // Property access - ensure root is an object
+            safeSetVariable(rootVar, {}, true);
             setNestedProperty(variableStructures, fullPath, true); // Boolean for if conditions
         } else {
+            // Simple variable in if condition - only set as boolean if not already a complex type
             if (!(rootVar in variableStructures)) {
                 variableStructures[rootVar] = true; // Default boolean for if conditions
             }
+            // Don't override existing objects/arrays with boolean when used in truthiness check
         }
     }
     
@@ -256,10 +296,9 @@ function extractVariablesFromTemplate(template) {
         const basePath = match[1];
         const index = parseInt(match[2]);
         const rootVar = basePath.split('.')[0];
+        referencedVariables.add(rootVar);
         
-        if (!(rootVar in variableStructures)) {
-            variableStructures[rootVar] = basePath.includes('.') ? {} : [];
-        }
+        safeSetVariable(rootVar, basePath.includes('.') ? {} : [], true);
         
         // Create array structure
         const arrayPath = basePath + '.' + index;
@@ -272,6 +311,7 @@ function extractVariablesFromTemplate(template) {
         const loopVar = match[1];
         const arrayVar = match[2];
         const loopContent = match[3];
+        referencedVariables.add(arrayVar);
         
         // Find properties accessed on the loop variable
         const loopVarPattern = new RegExp(`\\{\\{\\s*${loopVar}\\.([a-zA-Z_][a-zA-Z0-9_]*)`, 'g');
@@ -284,11 +324,19 @@ function extractVariablesFromTemplate(template) {
         
         if (Object.keys(itemStructure).length > 0) {
             // Create array of objects
-            variableStructures[arrayVar] = [itemStructure, itemStructure];
+            safeSetVariable(arrayVar, [itemStructure, itemStructure], true);
         }
     }
     
-    return variableStructures;
+    // Final step: Only return variables that were actually referenced in the template
+    const finalVariableStructures = {};
+    for (const [varName, structure] of Object.entries(variableStructures)) {
+        if (referencedVariables.has(varName)) {
+            finalVariableStructures[varName] = structure;
+        }
+    }
+    
+    return finalVariableStructures;
 }
 
 /**
