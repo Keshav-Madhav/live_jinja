@@ -46,6 +46,7 @@ const variablesHeader = document.getElementById('variables-header');
 const copyTemplateBtn = document.getElementById('copy-template-btn');
 const copyOutputBtn = document.getElementById('copy-output-btn');
 const showWhitespaceToggle = document.getElementById('show-whitespace-toggle');
+const themeToggle = document.getElementById('theme-toggle');
 
 // --- STATE MANAGEMENT ---
 let isFormMode = false;
@@ -870,6 +871,29 @@ copyOutputBtn.addEventListener('click', async function() {
     }
 });
 
+// Theme toggle
+themeToggle.addEventListener('change', function() {
+    if (this.checked) {
+        // Switch to light mode
+        document.body.classList.remove('dark-mode');
+        localStorage.setItem('theme', 'light');
+        jinjaEditor.setOption('theme', 'default');
+        varsEditor.setOption('theme', 'default');
+    } else {
+        // Switch to dark mode
+        document.body.classList.add('dark-mode');
+        localStorage.setItem('theme', 'dark');
+        jinjaEditor.setOption('theme', 'material-darker');
+        varsEditor.setOption('theme', 'material-darker');
+    }
+    
+    // Refresh CodeMirror editors to apply theme
+    setTimeout(() => {
+        jinjaEditor.refresh();
+        varsEditor.refresh();
+    }, 10);
+});
+
 // --- EVENT LISTENERS ---
 // Conditional event listeners based on auto-rerender setting
 function setupEventListeners() {
@@ -1024,6 +1048,21 @@ window.addEventListener('resize', function() {
 // Initial setup
 setInitialSizes();
 setupEventListeners();
+
+// Load saved theme preference
+const savedTheme = localStorage.getItem('theme');
+if (savedTheme === 'light') {
+    document.body.classList.remove('dark-mode');
+    themeToggle.checked = true;
+    jinjaEditor.setOption('theme', 'default');
+    varsEditor.setOption('theme', 'default');
+} else {
+    // Default to dark mode
+    document.body.classList.add('dark-mode');
+    themeToggle.checked = false;
+    jinjaEditor.setOption('theme', 'material-darker');
+    varsEditor.setOption('theme', 'material-darker');
+}
 
 // Start Pyodide and initial render
 setupPyodide();

@@ -16,12 +16,21 @@
 
     <link rel="stylesheet" href="styles.css">
 </head>
-<body>
+<body class="dark-mode">
 
     <div class="loading-overlay" id="loading-overlay"></div>
     <div id="loader">Loading Python Environment...</div>
 
-    <h1>Live Jinja Parser (Pyodide) 🐍</h1>
+    <header class="main-header">
+        <h1>Live Jinja Parser (Pyodide) 🐍</h1>
+        <div class="theme-toggle-container">
+            <span class="theme-label">Light Mode</span>
+            <label class="theme-switch">
+                <input type="checkbox" id="theme-toggle">
+                <span class="theme-slider"></span>
+            </label>
+        </div>
+    </header>
     
     <div class="resizable-container" id="main-container">
         <div class="resizable-left-panel" id="left-panel">
