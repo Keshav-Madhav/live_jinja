@@ -14,6 +14,10 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/mode/jinja2/jinja2.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/mode/javascript/javascript.min.js"></script>
 
+    <!-- Markdown and Mermaid libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/marked@11.1.0/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10.6.1/dist/mermaid.min.js"></script>
+
     <link rel="stylesheet" href="styles.css">
 </head>
 <body class="dark-mode">
@@ -67,16 +71,8 @@
         <div class="resizable-right-panel" id="right-panel">
             <div class="pane" id="output-pane">
                 <div class="pane-header">
-                <h2>Output</h2>
+                    <h2>Output</h2>
                     <div class="header-controls">
-                        <button class="header-btn" id="copy-output-btn">Copy Output</button>
-                        <div class="control-group">
-                            <span class="control-label">Whitespace</span>
-                            <label class="switch">
-                                <input type="checkbox" id="show-whitespace-toggle">
-                                <span class="slider"></span>
-                            </label>
-                        </div>
                         <div class="control-group">
                             <span class="control-label">Auto Rerender</span>
                             <label class="switch">
@@ -87,7 +83,38 @@
                         <button class="rerender-btn" id="manual-rerender" disabled>Rerender</button>
                     </div>
                 </div>
-                <pre id="output"></pre>
+                <div class="output-content">
+                    <pre id="output"></pre>
+                    <div id="markdown-output" class="markdown-content" style="display: none;"></div>
+                </div>
+                <div class="pane-footer">
+                    <div class="footer-controls-left">
+                        <div class="control-group">
+                            <span class="control-label">Markdown</span>
+                            <label class="switch">
+                                <input type="checkbox" id="markdown-toggle">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                        <div class="control-group">
+                            <span class="control-label">Mermaid</span>
+                            <label class="switch">
+                                <input type="checkbox" id="mermaid-toggle">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                        <div class="control-group">
+                            <span class="control-label">Whitespace</span>
+                            <label class="switch">
+                                <input type="checkbox" id="show-whitespace-toggle">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="footer-controls-right">
+                        <button class="header-btn" id="copy-output-btn">Copy Output</button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
