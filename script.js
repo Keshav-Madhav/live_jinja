@@ -116,8 +116,10 @@ function showButtonFeedback(button, message = 'Done!', duration = 1500) {
     const originalText = button.textContent;
     const originalBackground = button.style.background || getComputedStyle(button).backgroundColor;
     
+    const successColor = getComputedStyle(document.documentElement).getPropertyValue('--success-color').trim();
+    
     button.textContent = message;
-    button.style.background = '#4CAF50';
+    button.style.background = successColor;
     button.disabled = true;
     
     setTimeout(() => {
@@ -131,27 +133,30 @@ function showButtonFeedback(button, message = 'Done!', duration = 1500) {
  * Provides visual feedback for toggle switches
  */
 function showToggleFeedback(toggleElement, message) {
+    const successColor = getComputedStyle(document.documentElement).getPropertyValue('--success-color').trim();
+    
     // Create a temporary tooltip-like element
     const feedback = document.createElement('div');
     feedback.textContent = message;
     feedback.style.cssText = `
         position: absolute;
-        background: #4CAF50;
+        background: ${successColor};
         color: white;
-        padding: 4px 8px;
-        border-radius: 4px;
+        padding: 6px 10px;
+        border-radius: 6px;
         font-size: 11px;
         font-weight: 500;
         z-index: 1000;
         pointer-events: none;
         transform: translateX(-50%);
         white-space: nowrap;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
     `;
     
     // Position relative to the toggle
     const rect = toggleElement.getBoundingClientRect();
     feedback.style.left = `${rect.left + rect.width / 2}px`;
-    feedback.style.top = `${rect.top - 30}px`;
+    feedback.style.top = `${rect.top - 35}px`;
     
     document.body.appendChild(feedback);
     
@@ -1026,16 +1031,7 @@ copyTemplateBtn.addEventListener('click', async function() {
     try {
         const templateContent = jinjaEditor.getValue();
         await navigator.clipboard.writeText(templateContent);
-        
-        // Visual feedback
-        const originalText = this.textContent;
-        this.textContent = 'Copied!';
-        this.style.background = '#4CAF50';
-        
-        setTimeout(() => {
-            this.textContent = originalText;
-            this.style.background = '#2196F3';
-        }, 1500);
+        showButtonFeedback(this, 'Copied!', 1500);
     } catch (err) {
         // Fallback for older browsers
         const textArea = document.createElement('textarea');
@@ -1044,16 +1040,7 @@ copyTemplateBtn.addEventListener('click', async function() {
         textArea.select();
         document.execCommand('copy');
         document.body.removeChild(textArea);
-        
-        // Visual feedback
-        const originalText = this.textContent;
-        this.textContent = 'Copied!';
-        this.style.background = '#4CAF50';
-        
-        setTimeout(() => {
-            this.textContent = originalText;
-            this.style.background = '#2196F3';
-        }, 1500);
+        showButtonFeedback(this, 'Copied!', 1500);
     }
 });
 
@@ -1062,16 +1049,7 @@ copyOutputBtn.addEventListener('click', async function() {
     try {
         const outputContent = outputElement.textContent;
         await navigator.clipboard.writeText(outputContent);
-        
-        // Visual feedback
-        const originalText = this.textContent;
-        this.textContent = 'Copied!';
-        this.style.background = '#4CAF50';
-        
-        setTimeout(() => {
-            this.textContent = originalText;
-            this.style.background = '#2196F3';
-        }, 1500);
+        showButtonFeedback(this, 'Copied!', 1500);
     } catch (err) {
         // Fallback for older browsers
         const textArea = document.createElement('textarea');
@@ -1080,16 +1058,7 @@ copyOutputBtn.addEventListener('click', async function() {
         textArea.select();
         document.execCommand('copy');
         document.body.removeChild(textArea);
-        
-        // Visual feedback
-        const originalText = this.textContent;
-        this.textContent = 'Copied!';
-        this.style.background = '#4CAF50';
-        
-        setTimeout(() => {
-            this.textContent = originalText;
-            this.style.background = '#2196F3';
-        }, 1500);
+        showButtonFeedback(this, 'Copied!', 1500);
     }
 });
 
