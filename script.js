@@ -1,38 +1,5 @@
 // Start with minimal template and variables
-const defaultTemplate = `# Welcome to Live Jinja Parser! 🎉
-
-Hello **{{ name }}**! This is a demonstration of markdown and Mermaid support.
-
-## Features
-
-- ✨ **Markdown rendering** with full formatting support
-- 📊 **Mermaid diagrams** for flowcharts, sequence diagrams, and more
-- 🎨 **Dark/Light mode** with automatic theme switching
-- 🔄 **Live updates** as you type
-
-## Sample Flowchart
-
-\`\`\`mermaid
-graph TD
-    A[Start] --> B{Is Jinja Awesome?}
-    B -->|Yes| C[Use It!]
-    B -->|No| D[Learn More]
-    D --> B
-    C --> E[Build Amazing Templates]
-\`\`\`
-
-## Code Example
-
-\`\`\`python
-def hello(name):
-    return f"Hello {name}!"
-\`\`\`
-
-## Try the Toggles!
-
-- **Markdown** - Renders this with full markdown formatting and embedded Mermaid diagrams
-- **Mermaid** - Treats the entire output as a single Mermaid diagram (try replacing all text with just the mermaid syntax above!)
-- **Whitespace** - Shows hidden whitespace characters in plain text mode`;
+const defaultTemplate = `Hello {{ name }}!`;
 
 const defaultVars = {
     name: "World"

@@ -14,6 +14,7 @@ Perfect for developers who need to **render Jinja2 templates online**, **test Ji
 - **Auto-Rerender**: Automatically updates output as you type (can be toggled on/off)
 - **Manual Rerender**: Option to disable auto-rendering and manually trigger updates
 - **Syntax Highlighting**: Full Jinja2 syntax highlighting with CodeMirror
+- **Dark/Light Mode**: Beautiful dark mode by default with easy theme toggle
 
 ### 🔧 Variable Management
 - **Intelligent Variable Extraction**: Automatically detects and extracts variables from your templates
@@ -29,7 +30,11 @@ Perfect for developers who need to **render Jinja2 templates online**, **test Ji
 - **Copy Functionality**: One-click copying of templates and output
 - **Responsive Design**: Fully responsive interface that works on all screen sizes
 
-### 👁️ Visualization & Debugging
+### 👁️ Visualization & Output Modes
+- **Markdown Rendering**: Full markdown support with syntax highlighting and formatting
+- **Mermaid Diagrams**: Create flowcharts, sequence diagrams, and more
+  - **Embedded Mode**: Mix markdown text with Mermaid diagrams
+  - **Pure Mode**: Treat entire output as a single Mermaid diagram
 - **Whitespace Visualization**: Toggle to show spaces (·), tabs (→), and newlines (↵)
 - **Error Handling**: Clear error messages for template syntax and JSON parsing errors
 - **Loading States**: Visual feedback during Python environment initialization
@@ -51,13 +56,16 @@ Perfect for developers who need to **render Jinja2 templates online**, **test Ji
 - **Python Runtime**: [Pyodide](https://pyodide.org/) v0.25.1
 - **Template Engine**: Jinja2 (running in browser via Pyodide)
 - **Code Editor**: [CodeMirror](https://codemirror.net/) v5.65.15
-- **Styling**: Custom CSS with CSS variables for theming
+- **Markdown**: [Marked.js](https://marked.js.org/) v11.1.0
+- **Diagrams**: [Mermaid](https://mermaid.js.org/) v10.6.1
+- **Styling**: Custom CSS with CSS variables for dynamic theming
 
 ## 🎯 Use Cases
 
 - **Template Development**: Rapid prototyping and testing of Jinja2 templates
 - **Learning Jinja2**: Interactive environment for learning template syntax
-- **Documentation**: Generate examples and test edge cases
+- **Documentation Generation**: Create markdown docs with dynamic content and diagrams
+- **Diagram Generation**: Build flowcharts and visualizations from template data
 - **Debugging**: Visualize whitespace and troubleshoot template issues
 - **Code Review**: Share and review templates without server setup
 
@@ -70,6 +78,7 @@ Perfect for developers who need to **render Jinja2 templates online**, **test Ji
 
 ### Example Templates
 
+**Basic Template:**
 ```jinja2
 Hello {{ name }}!
 
@@ -83,6 +92,30 @@ Please log in to continue.
 - {{ item.name }}: ${{ item.price }}
 {% endfor %}
 ```
+
+**Markdown with Diagrams:**
+```jinja2
+# {{ title }}
+
+## Process Flow
+
+{# Embed mermaid diagrams in triple backticks with mermaid keyword #}
+graph LR
+    A[{{ step1 }}] --> B[{{ step2 }}]
+    B --> C[{{ step3 }}]
+
+Generated on {{ date }}
+```
+*Toggle "Markdown" to render with embedded diagrams*
+
+**Pure Mermaid:**
+```jinja2
+graph TD
+    A[{{ start }}] --> B{{{ decision }}}
+    B -->|Yes| C[{{ yes_action }}]
+    B -->|No| D[{{ no_action }}]
+```
+*Enable "Mermaid" toggle for pure diagram rendering*
 
 ## 🔧 Key Features Breakdown
 
@@ -103,12 +136,11 @@ The tool intelligently analyzes your template and creates appropriate variable s
 - **Window Adaptation**: Automatically adjusts to browser window changes
 - **Minimum Constraints**: Prevents panels from becoming too small
 
-### Whitespace Visualization
-Toggle to see hidden characters:
-- Spaces appear as middle dots (·)
-- Tabs show as arrows (→)  
-- Newlines display as return symbols (↵)
-- Original text layout preserved for accurate copying
+### Output Modes
+Three powerful ways to view your rendered templates:
+- **Plain Text**: Standard output with optional whitespace visualization (·→↵)
+- **Markdown**: Full markdown rendering with embedded Mermaid diagrams
+- **Mermaid**: Pure diagram mode - entire output becomes a single diagram
 
 ## 🌐 Browser Compatibility
 
