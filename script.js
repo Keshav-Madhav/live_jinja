@@ -28,6 +28,7 @@ jinjaEditor.setValue(defaultTemplate);
 varsEditor.setValue(JSON.stringify(defaultVars, null, 2));
 
 const outputElement = document.getElementById('output');
+const markdownOutputElement = document.getElementById('markdown-output');
 const loader = document.getElementById('loader');
 const loadingOverlay = document.getElementById('loading-overlay');
 
@@ -46,11 +47,17 @@ const variablesHeader = document.getElementById('variables-header');
 const copyTemplateBtn = document.getElementById('copy-template-btn');
 const copyOutputBtn = document.getElementById('copy-output-btn');
 const showWhitespaceToggle = document.getElementById('show-whitespace-toggle');
+const themeToggle = document.getElementById('theme-toggle');
+const markdownToggle = document.getElementById('markdown-toggle');
+const mermaidToggle = document.getElementById('mermaid-toggle');
 
 // --- STATE MANAGEMENT ---
 let isFormMode = false;
 let extractedVariables = new Set();
 let currentVariableValues = {};
+let isMarkdownMode = false;
+let isMermaidMode = false;
+let lastRenderedOutput = '';
 
 // Store debounced function references for proper event listener removal
 let debouncedUpdateFromJinja = null;
@@ -63,6 +70,20 @@ let startX = 0;
 let startY = 0;
 let startWidth = 0;
 let startHeight = 0;
+
+// --- MERMAID SETUP ---
+
+// Initialize Mermaid with configuration
+mermaid.initialize({
+    startOnLoad: false,
+    theme: document.body.classList.contains('dark-mode') ? 'dark' : 'default',
+    securityLevel: 'loose',
+    flowchart: {
+        useMaxWidth: true,
+        htmlLabels: true,
+        curve: 'basis'
+    }
+});
 
 // --- PYODIDE SETUP ---
 
@@ -95,8 +116,10 @@ function showButtonFeedback(button, message = 'Done!', duration = 1500) {
     const originalText = button.textContent;
     const originalBackground = button.style.background || getComputedStyle(button).backgroundColor;
     
+    const successColor = getComputedStyle(document.documentElement).getPropertyValue('--success-color').trim();
+    
     button.textContent = message;
-    button.style.background = '#4CAF50';
+    button.style.background = successColor;
     button.disabled = true;
     
     setTimeout(() => {
@@ -110,27 +133,30 @@ function showButtonFeedback(button, message = 'Done!', duration = 1500) {
  * Provides visual feedback for toggle switches
  */
 function showToggleFeedback(toggleElement, message) {
+    const successColor = getComputedStyle(document.documentElement).getPropertyValue('--success-color').trim();
+    
     // Create a temporary tooltip-like element
     const feedback = document.createElement('div');
     feedback.textContent = message;
     feedback.style.cssText = `
         position: absolute;
-        background: #4CAF50;
+        background: ${successColor};
         color: white;
-        padding: 4px 8px;
-        border-radius: 4px;
+        padding: 6px 10px;
+        border-radius: 6px;
         font-size: 11px;
         font-weight: 500;
         z-index: 1000;
         pointer-events: none;
         transform: translateX(-50%);
         white-space: nowrap;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
     `;
     
     // Position relative to the toggle
     const rect = toggleElement.getBoundingClientRect();
     feedback.style.left = `${rect.left + rect.width / 2}px`;
-    feedback.style.top = `${rect.top - 30}px`;
+    feedback.style.top = `${rect.top - 35}px`;
     
     document.body.appendChild(feedback);
     
@@ -158,6 +184,85 @@ function renderWhitespace(text) {
         .replace(/ /g, '<span class="whitespace-char space"> </span>')
         .replace(/\t/g, '<span class="whitespace-char tab">\t</span>')
         .replace(/\n/g, '<span class="whitespace-char newline"></span>\n');
+}
+
+/**
+ * Renders markdown with Mermaid diagram support
+ */
+async function renderMarkdown(text) {
+    // Store the text for later use
+    lastRenderedOutput = text;
+    
+    // Extract mermaid code blocks before markdown parsing
+    const mermaidBlocks = [];
+    const mermaidPlaceholder = text.replace(/```mermaid\n([\s\S]*?)```/g, (match, code) => {
+        mermaidBlocks.push(code.trim());
+        return `<div class="mermaid-placeholder" data-index="${mermaidBlocks.length - 1}"></div>`;
+    });
+    
+    // Parse markdown
+    const html = marked.parse(mermaidPlaceholder);
+    
+    // Insert HTML into the output element
+    markdownOutputElement.innerHTML = html;
+    
+    // Replace placeholders with actual mermaid diagrams
+    const placeholders = markdownOutputElement.querySelectorAll('.mermaid-placeholder');
+    for (let i = 0; i < placeholders.length; i++) {
+        const placeholder = placeholders[i];
+        const index = parseInt(placeholder.getAttribute('data-index'));
+        const code = mermaidBlocks[index];
+        
+        // Create a container for the mermaid diagram
+        const mermaidDiv = document.createElement('div');
+        mermaidDiv.className = 'mermaid';
+        mermaidDiv.textContent = code;
+        
+        // Replace the placeholder
+        placeholder.parentNode.replaceChild(mermaidDiv, placeholder);
+    }
+    
+    // Render all mermaid diagrams
+    try {
+        await mermaid.run({
+            querySelector: '.markdown-content .mermaid'
+        });
+    } catch (error) {
+        console.error('Mermaid rendering error:', error);
+    }
+}
+
+/**
+ * Renders pure Mermaid diagram (assumes entire output is mermaid syntax)
+ */
+async function renderPureMermaid(text) {
+    // Store the text for later use
+    lastRenderedOutput = text;
+    
+    // Clear the markdown output and add a single mermaid diagram
+    markdownOutputElement.innerHTML = '';
+    
+    // Create a container for the mermaid diagram
+    const mermaidDiv = document.createElement('div');
+    mermaidDiv.className = 'mermaid';
+    mermaidDiv.textContent = text.trim();
+    
+    markdownOutputElement.appendChild(mermaidDiv);
+    
+    // Render the mermaid diagram
+    try {
+        await mermaid.run({
+            querySelector: '.markdown-content .mermaid'
+        });
+    } catch (error) {
+        console.error('Mermaid rendering error:', error);
+        // Show error in a user-friendly way
+        markdownOutputElement.innerHTML = `<div style="color: #d32f2f; padding: 20px; border: 2px solid #d32f2f; border-radius: 8px; margin: 20px;">
+            <strong>⚠️ Mermaid Rendering Error</strong><br><br>
+            ${error.message || 'Failed to render diagram'}<br><br>
+            <small>Please check your Mermaid syntax.</small>
+        </div>`;
+    }
 }
 
 /**
@@ -645,13 +750,32 @@ except Exception as e:
 result
         `);
         
-        // Set the main content, checking for whitespace toggle
-        if (showWhitespaceToggle.checked) {
-            outputElement.innerHTML = renderWhitespace(result);
+        // Store the result
+        lastRenderedOutput = result;
+        
+        // Set the main content based on mode
+        if (isMermaidMode) {
+            // Render as pure mermaid diagram
+            outputElement.style.display = 'none';
+            markdownOutputElement.style.display = 'block';
+            await renderPureMermaid(result);
+        } else if (isMarkdownMode) {
+            // Render as markdown
+            outputElement.style.display = 'none';
+            markdownOutputElement.style.display = 'block';
+            await renderMarkdown(result);
         } else {
-            outputElement.textContent = result;
+            // Render as plain text
+            outputElement.style.display = 'block';
+            markdownOutputElement.style.display = 'none';
+            
+            if (showWhitespaceToggle.checked) {
+                outputElement.innerHTML = renderWhitespace(result);
+            } else {
+                outputElement.textContent = result;
+            }
+            outputElement.className = result.includes('Error:') ? 'error' : '';
         }
-        outputElement.className = result.includes('Error:') ? 'error' : '';
     } catch (e) {
         outputElement.textContent = `Python execution error: ${e.message}`;
         outputElement.className = 'error';
@@ -782,6 +906,110 @@ showWhitespaceToggle.addEventListener('change', function() {
     showToggleFeedback(this.parentElement, message);
 });
 
+// Markdown toggle
+markdownToggle.addEventListener('change', async function() {
+    if (this.checked) {
+        // Disable mermaid mode if it's on
+        if (isMermaidMode) {
+            mermaidToggle.checked = false;
+            isMermaidMode = false;
+        }
+        
+        isMarkdownMode = true;
+        
+        // Switch to markdown mode
+        outputElement.style.display = 'none';
+        markdownOutputElement.style.display = 'block';
+        
+        // If we have output, render it as markdown
+        if (lastRenderedOutput) {
+            await renderMarkdown(lastRenderedOutput);
+        }
+        
+        // Disable whitespace toggle in markdown mode
+        showWhitespaceToggle.disabled = true;
+        showWhitespaceToggle.parentElement.style.opacity = '0.5';
+        
+        // Show feedback
+        showToggleFeedback(this.parentElement, 'Markdown mode enabled!');
+    } else {
+        isMarkdownMode = false;
+        
+        // Switch to plain text mode
+        outputElement.style.display = 'block';
+        markdownOutputElement.style.display = 'none';
+        
+        // Re-render as plain text
+        if (lastRenderedOutput) {
+            if (showWhitespaceToggle.checked) {
+                outputElement.innerHTML = renderWhitespace(lastRenderedOutput);
+            } else {
+                outputElement.textContent = lastRenderedOutput;
+            }
+            outputElement.className = lastRenderedOutput.includes('Error:') ? 'error' : '';
+        }
+        
+        // Re-enable whitespace toggle
+        showWhitespaceToggle.disabled = false;
+        showWhitespaceToggle.parentElement.style.opacity = '1';
+        
+        // Show feedback
+        showToggleFeedback(this.parentElement, 'Plain text mode enabled!');
+    }
+});
+
+// Mermaid toggle
+mermaidToggle.addEventListener('change', async function() {
+    if (this.checked) {
+        // Disable markdown mode if it's on
+        if (isMarkdownMode) {
+            markdownToggle.checked = false;
+            isMarkdownMode = false;
+        }
+        
+        isMermaidMode = true;
+        
+        // Switch to mermaid mode
+        outputElement.style.display = 'none';
+        markdownOutputElement.style.display = 'block';
+        
+        // If we have output, render it as mermaid
+        if (lastRenderedOutput) {
+            await renderPureMermaid(lastRenderedOutput);
+        }
+        
+        // Disable whitespace toggle in mermaid mode
+        showWhitespaceToggle.disabled = true;
+        showWhitespaceToggle.parentElement.style.opacity = '0.5';
+        
+        // Show feedback
+        showToggleFeedback(this.parentElement, 'Mermaid mode enabled!');
+    } else {
+        isMermaidMode = false;
+        
+        // Switch to plain text mode
+        outputElement.style.display = 'block';
+        markdownOutputElement.style.display = 'none';
+        
+        // Re-render as plain text
+        if (lastRenderedOutput) {
+            if (showWhitespaceToggle.checked) {
+                outputElement.innerHTML = renderWhitespace(lastRenderedOutput);
+            } else {
+                outputElement.textContent = lastRenderedOutput;
+            }
+            outputElement.className = lastRenderedOutput.includes('Error:') ? 'error' : '';
+        }
+        
+        // Re-enable whitespace toggle
+        showWhitespaceToggle.disabled = false;
+        showWhitespaceToggle.parentElement.style.opacity = '1';
+        
+        // Show feedback
+        showToggleFeedback(this.parentElement, 'Plain text mode enabled!');
+    }
+});
+
 // Auto rerender toggle
 autoRerenderToggle.addEventListener('change', function() {
     manualRerenderBtn.disabled = this.checked;
@@ -803,16 +1031,7 @@ copyTemplateBtn.addEventListener('click', async function() {
     try {
         const templateContent = jinjaEditor.getValue();
         await navigator.clipboard.writeText(templateContent);
-        
-        // Visual feedback
-        const originalText = this.textContent;
-        this.textContent = 'Copied!';
-        this.style.background = '#4CAF50';
-        
-        setTimeout(() => {
-            this.textContent = originalText;
-            this.style.background = '#2196F3';
-        }, 1500);
+        showButtonFeedback(this, 'Copied!', 1500);
     } catch (err) {
         // Fallback for older browsers
         const textArea = document.createElement('textarea');
@@ -821,16 +1040,7 @@ copyTemplateBtn.addEventListener('click', async function() {
         textArea.select();
         document.execCommand('copy');
         document.body.removeChild(textArea);
-        
-        // Visual feedback
-        const originalText = this.textContent;
-        this.textContent = 'Copied!';
-        this.style.background = '#4CAF50';
-        
-        setTimeout(() => {
-            this.textContent = originalText;
-            this.style.background = '#2196F3';
-        }, 1500);
+        showButtonFeedback(this, 'Copied!', 1500);
     }
 });
 
@@ -839,16 +1049,7 @@ copyOutputBtn.addEventListener('click', async function() {
     try {
         const outputContent = outputElement.textContent;
         await navigator.clipboard.writeText(outputContent);
-        
-        // Visual feedback
-        const originalText = this.textContent;
-        this.textContent = 'Copied!';
-        this.style.background = '#4CAF50';
-        
-        setTimeout(() => {
-            this.textContent = originalText;
-            this.style.background = '#2196F3';
-        }, 1500);
+        showButtonFeedback(this, 'Copied!', 1500);
     } catch (err) {
         // Fallback for older browsers
         const textArea = document.createElement('textarea');
@@ -857,17 +1058,64 @@ copyOutputBtn.addEventListener('click', async function() {
         textArea.select();
         document.execCommand('copy');
         document.body.removeChild(textArea);
-        
-        // Visual feedback
-        const originalText = this.textContent;
-        this.textContent = 'Copied!';
-        this.style.background = '#4CAF50';
-        
-        setTimeout(() => {
-            this.textContent = originalText;
-            this.style.background = '#2196F3';
-        }, 1500);
+        showButtonFeedback(this, 'Copied!', 1500);
     }
+});
+
+// Theme toggle
+themeToggle.addEventListener('change', function() {
+    const isLightMode = this.checked;
+    
+    if (isLightMode) {
+        // Switch to light mode
+        document.body.classList.remove('dark-mode');
+        localStorage.setItem('theme', 'light');
+        jinjaEditor.setOption('theme', 'default');
+        varsEditor.setOption('theme', 'default');
+        
+        // Update Mermaid theme
+        mermaid.initialize({
+            startOnLoad: false,
+            theme: 'default',
+            securityLevel: 'loose',
+            flowchart: {
+                useMaxWidth: true,
+                htmlLabels: true,
+                curve: 'basis'
+            }
+        });
+    } else {
+        // Switch to dark mode
+        document.body.classList.add('dark-mode');
+        localStorage.setItem('theme', 'dark');
+        jinjaEditor.setOption('theme', 'material-darker');
+        varsEditor.setOption('theme', 'material-darker');
+        
+        // Update Mermaid theme
+        mermaid.initialize({
+            startOnLoad: false,
+            theme: 'dark',
+            securityLevel: 'loose',
+            flowchart: {
+                useMaxWidth: true,
+                htmlLabels: true,
+                curve: 'basis'
+            }
+        });
+    }
+    
+    // If in markdown or mermaid mode, re-render to apply new Mermaid theme
+    if (isMarkdownMode && lastRenderedOutput) {
+        renderMarkdown(lastRenderedOutput);
+    } else if (isMermaidMode && lastRenderedOutput) {
+        renderPureMermaid(lastRenderedOutput);
+    }
+    
+    // Refresh CodeMirror editors to apply theme
+    setTimeout(() => {
+        jinjaEditor.refresh();
+        varsEditor.refresh();
+    }, 10);
 });
 
 // --- EVENT LISTENERS ---
@@ -1024,6 +1272,21 @@ window.addEventListener('resize', function() {
 // Initial setup
 setInitialSizes();
 setupEventListeners();
+
+// Load saved theme preference
+const savedTheme = localStorage.getItem('theme');
+if (savedTheme === 'light') {
+    document.body.classList.remove('dark-mode');
+    themeToggle.checked = true;
+    jinjaEditor.setOption('theme', 'default');
+    varsEditor.setOption('theme', 'default');
+} else {
+    // Default to dark mode
+    document.body.classList.add('dark-mode');
+    themeToggle.checked = false;
+    jinjaEditor.setOption('theme', 'material-darker');
+    varsEditor.setOption('theme', 'material-darker');
+}
 
 // Start Pyodide and initial render
 setupPyodide();
