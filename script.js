@@ -10,7 +10,6 @@ const commonEditorOptions = {
     lineNumbers: true,
     theme: 'material-darker',
     lineWrapping: true,
-    viewportMargin: Infinity, // Render all content
     scrollbarStyle: 'native'
 };
 
@@ -81,7 +80,11 @@ mermaid.initialize({
     flowchart: {
         useMaxWidth: true,
         htmlLabels: true,
-        curve: 'basis'
+        curve: 'basis',
+        wrap: true
+    },
+    themeVariables: {
+        fontSize: '14px'
     }
 });
 
@@ -1081,7 +1084,11 @@ themeToggle.addEventListener('change', function() {
             flowchart: {
                 useMaxWidth: true,
                 htmlLabels: true,
-                curve: 'basis'
+                curve: 'basis',
+                wrap: true
+            },
+            themeVariables: {
+                fontSize: '14px'
             }
         });
     } else {
@@ -1099,7 +1106,11 @@ themeToggle.addEventListener('change', function() {
             flowchart: {
                 useMaxWidth: true,
                 htmlLabels: true,
-                curve: 'basis'
+                curve: 'basis',
+                wrap: true
+            },
+            themeVariables: {
+                fontSize: '14px'
             }
         });
     }

@@ -558,6 +558,8 @@ input:checked + .slider:before {
     gap: 0;
     padding: 14px;
     min-width: 0;
+    box-sizing: border-box; /* Include padding in height calculation */
+    overflow: hidden; /* Prevent container from overflowing */
 }
 .resizable-left-panel {
     display: flex;
@@ -565,9 +567,11 @@ input:checked + .slider:before {
     gap: 0;
     min-width: 200px;
     max-width: calc(100vw - 250px);
+    height: 100%; /* Use full container height */
 }
 .resizable-right-panel {
     min-width: 200px;
+    height: 100%; /* Use full container height */
 }
 .resizable-template-pane {
     min-height: 100px;
@@ -810,4 +814,50 @@ input:checked + .slider:before {
 /* Dark mode specific adjustments for better mermaid visibility */
 body.dark-mode .markdown-content .mermaid svg {
     background-color: transparent;
+}
+
+/* Mermaid text wrapping support */
+/* Target the actual node shapes */
+.markdown-content .mermaid .node rect,
+.markdown-content .mermaid .node circle,
+.markdown-content .mermaid .node ellipse,
+.markdown-content .mermaid .node polygon,
+.markdown-content .mermaid .node path {
+    min-width: 100px !important;
+}
+
+.markdown-content .mermaid .node {
+    min-width: 100px !important;
+}
+
+.markdown-content .mermaid .node .label,
+.markdown-content .mermaid .edgeLabel .label {
+    white-space: normal !important;
+    word-wrap: break-word !important;
+    overflow-wrap: break-word !important;
+    min-width: 100px;
+    max-width: 200px;
+}
+
+.markdown-content .mermaid .nodeLabel,
+.markdown-content .mermaid .edgeLabel {
+    white-space: normal !important;
+    word-wrap: break-word !important;
+    overflow-wrap: break-word !important;
+    min-width: 100px;
+    max-width: 200px;
+}
+
+.markdown-content .mermaid foreignObject {
+    overflow: visible !important;
+    min-width: 100px !important;
+}
+
+.markdown-content .mermaid foreignObject div {
+    white-space: normal !important;
+    word-wrap: break-word !important;
+    overflow-wrap: break-word !important;
+    min-width: 100px;
+    max-width: 200px;
+    padding: 5px;
 }
