@@ -70,6 +70,10 @@ const renameModalCancelBtn = document.getElementById('rename-modal-cancel-btn');
 const renameModalSaveBtn = document.getElementById('rename-modal-save-btn');
 const renameConfigNameInput = document.getElementById('rename-config-name');
 const jinjaVersionSelect = document.getElementById('jinja-version-select');
+const customJinjaSelect = document.getElementById('custom-jinja-select');
+const customSelectTrigger = customJinjaSelect.querySelector('.custom-select-trigger');
+const selectedVersionText = document.getElementById('selected-version-text');
+const versionOptions = document.getElementById('version-options');
 const conflictModalOverlay = document.getElementById('conflict-modal-overlay');
 const conflictModalCloseBtn = document.getElementById('conflict-modal-close-btn');
 const conflictOverrideBtn = document.getElementById('conflict-override-btn');
@@ -2380,6 +2384,46 @@ document.addEventListener('keydown', function(e) {
         }
     }
 });
+
+// Custom dropdown functionality
+customSelectTrigger.addEventListener('click', function(e) {
+    e.stopPropagation();
+    customJinjaSelect.classList.toggle('open');
+});
+
+// Close dropdown when clicking outside
+document.addEventListener('click', function(e) {
+    if (!customJinjaSelect.contains(e.target)) {
+        customJinjaSelect.classList.remove('open');
+    }
+});
+
+// Handle option selection
+versionOptions.querySelectorAll('.custom-option').forEach(option => {
+    option.addEventListener('click', function() {
+        const value = this.getAttribute('data-value');
+        const text = this.textContent;
+        
+        // Update visual state
+        versionOptions.querySelectorAll('.custom-option').forEach(opt => {
+            opt.classList.remove('selected');
+        });
+        this.classList.add('selected');
+        
+        // Update trigger text
+        selectedVersionText.textContent = text;
+        
+        // Update hidden select and trigger change event
+        jinjaVersionSelect.value = value;
+        jinjaVersionSelect.dispatchEvent(new Event('change'));
+        
+        // Close dropdown
+        customJinjaSelect.classList.remove('open');
+    });
+});
+
+// Initialize first option as selected
+versionOptions.querySelector('.custom-option[data-value="latest"]').classList.add('selected');
 
 // Jinja2 version selector
 jinjaVersionSelect.addEventListener('change', async function() {
