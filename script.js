@@ -298,6 +298,86 @@ function extractVariablesFromTemplate(template) {
     const variableStructures = {};
     const referencedVariables = new Set(); // Track variables that are referenced (not just assigned)
     
+    // Jinja2 keywords and operators that should NOT be treated as variables
+    const jinjaKeywords = new Set([
+        // Control structures
+        'if', 'elif', 'else', 'endif', 'for', 'endfor', 'while', 'endwhile',
+        'set', 'endset', 'block', 'endblock', 'extends', 'include', 'import',
+        'from', 'macro', 'endmacro', 'call', 'endcall', 'filter', 'endfilter',
+        'with', 'endwith', 'autoescape', 'endautoescape', 'raw', 'endraw',
+        'trans', 'endtrans', 'pluralize',
+        
+        // Operators and logical keywords
+        'not', 'and', 'or', 'in', 'is', 'true', 'false', 'none', 'null',
+        'True', 'False', 'None', 'NULL',
+        
+        // Built-in tests
+        'defined', 'undefined', 'none', 'boolean', 'false', 'true', 'integer',
+        'float', 'number', 'string', 'sequence', 'iterable', 'mapping',
+        'sameas', 'escaped', 'odd', 'even', 'divisibleby', 'equalto',
+        
+        // Built-in functions (common ones)
+        'range', 'lipsum', 'dict', 'cycler', 'joiner', 'len', 'abs', 'round',
+        'min', 'max', 'sum', 'list', 'tuple', 'set', 'sorted', 'reversed',
+        'enumerate', 'zip', 'filter', 'map', 'any', 'all',
+        
+        // Loop variables
+        'loop'
+    ]);
+    
+    // Helper function to check if a variable name is a Jinja keyword
+    function isJinjaKeyword(varName) {
+        return jinjaKeywords.has(varName.toLowerCase());
+    }
+    
+    // Helper function to extract variables from a boolean expression
+    function extractVariablesFromExpression(expression) {
+        const variables = [];
+        
+        // Remove string literals first to avoid false matches
+        let cleanedExpression = expression
+            .replace(/'[^']*'/g, '')  // Remove single-quoted strings
+            .replace(/"[^"]*"/g, '')  // Remove double-quoted strings
+            .replace(/\b\d+\.?\d*\b/g, '')  // Remove numbers
+            .replace(/\s+(?:and|or|not|in|is|==|!=|<=|>=|<|>)\s+/gi, ' ')  // Remove operators
+            .replace(/\s*[\(\)\[\]]\s*/g, ' ')  // Remove parentheses and brackets
+            .replace(/\s+/g, ' ')  // Normalize spaces
+            .trim();
+            
+        // Handle function calls separately - extract variables from function arguments
+        const functionCallPattern = /\b([a-zA-Z_][a-zA-Z0-9_]*)\s*\(\s*([^)]*)\s*\)/g;
+        let funcMatch;
+        while ((funcMatch = functionCallPattern.exec(expression)) !== null) {
+            const funcName = funcMatch[1];
+            const args = funcMatch[2];
+            
+            // If it's not a built-in function, treat the function name as a variable
+            if (!isJinjaKeyword(funcName)) {
+                variables.push(funcName);
+            }
+            
+            // Extract variables from function arguments
+            if (args.trim()) {
+                const argVariables = extractVariablesFromExpression(args);
+                variables.push(...argVariables);
+            }
+        }
+        
+        // Extract variable patterns
+        const varMatches = cleanedExpression.match(/\b[a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*/g);
+        
+        if (varMatches) {
+            for (const match of varMatches) {
+                const rootVar = match.split('.')[0];
+                if (!isJinjaKeyword(rootVar)) {
+                    variables.push(match);
+                }
+            }
+        }
+        
+        return variables;
+    }
+    
     // Helper function to set nested property
     function setNestedProperty(obj, path, value) {
         const keys = path.split('.');
@@ -351,6 +431,12 @@ function extractVariablesFromTemplate(template) {
         
         // Mark the source variable for extraction
         const rootSourceVar = sourceVar.split('.')[0];
+        
+        // Skip if it's a Jinja keyword
+        if (isJinjaKeyword(rootSourceVar)) {
+            continue;
+        }
+        
         referencedVariables.add(rootSourceVar);
         
         if (sourceVar.includes('.')) {
@@ -363,13 +449,19 @@ function extractVariablesFromTemplate(template) {
         }
     }
     
-    // 1. Match {{ variable.property }} and {{ variable.property.nested }} patterns
-    const variablePattern = /\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*)(?:\s*\|\s*[^}]+)?\s*\}\}/g;
+    // 1. Match {{ variable.property }} and {{ variable.property.nested }} patterns (with filters)
+    const variablePattern = /\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*)(?:\s*\|[^}]+)?\s*\}\}/g;
     let match;
     
     while ((match = variablePattern.exec(template)) !== null) {
         const fullPath = match[1];
         const rootVar = fullPath.split('.')[0];
+        
+        // Skip if it's a Jinja keyword
+        if (isJinjaKeyword(rootVar)) {
+            continue;
+        }
+        
         referencedVariables.add(rootVar);
         
         if (fullPath.includes('.')) {
@@ -386,6 +478,12 @@ function extractVariablesFromTemplate(template) {
     const forPattern = /\{\%\s*for\s+\w+\s+in\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\%\}/g;
     while ((match = forPattern.exec(template)) !== null) {
         const varName = match[1];
+        
+        // Skip if it's a Jinja keyword
+        if (isJinjaKeyword(varName)) {
+            continue;
+        }
+        
         referencedVariables.add(varName);
         
         if (!(varName in variableStructures)) {
@@ -400,28 +498,38 @@ function extractVariablesFromTemplate(template) {
     const dictForPattern = /\{\%\s*for\s+\w+,\s*\w+\s+in\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\.\s*items\s*\(\s*\)\s*\%\}/g;
     while ((match = dictForPattern.exec(template)) !== null) {
         const varName = match[1];
+        
+        // Skip if it's a Jinja keyword
+        if (isJinjaKeyword(varName)) {
+            continue;
+        }
+        
         referencedVariables.add(varName);
         
         safeSetVariable(varName, { key1: 'value1', key2: 'value2' }, true);
     }
     
-    // 4. Match {% if variable %} and {% if variable.property %} patterns
-    const ifPattern = /\{\%\s*if\s+([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*)/g;
-    while ((match = ifPattern.exec(template)) !== null) {
-        const fullPath = match[1];
-        const rootVar = fullPath.split('.')[0];
-        referencedVariables.add(rootVar);
+    // 4. Match {% if ... %} and {% elif ... %} patterns to extract variables from conditions
+    const ifConditionPattern = /\{\%\s*(?:el)?if\s+([^%]+)\s*\%\}/g;
+    while ((match = ifConditionPattern.exec(template)) !== null) {
+        const condition = match[1];
+        const variablesInCondition = extractVariablesFromExpression(condition);
         
-        if (fullPath.includes('.')) {
-            // Property access - ensure root is an object
-            safeSetVariable(rootVar, {}, true);
-            setNestedProperty(variableStructures, fullPath, true); // Boolean for if conditions
-        } else {
-            // Simple variable in if condition - only set as boolean if not already a complex type
-            if (!(rootVar in variableStructures)) {
-                variableStructures[rootVar] = true; // Default boolean for if conditions
+        for (const fullPath of variablesInCondition) {
+            const rootVar = fullPath.split('.')[0];
+            referencedVariables.add(rootVar);
+            
+            if (fullPath.includes('.')) {
+                // Property access - ensure root is an object
+                safeSetVariable(rootVar, {}, true);
+                setNestedProperty(variableStructures, fullPath, true); // Boolean for if conditions
+            } else {
+                // Simple variable in if condition - only set as boolean if not already a complex type
+                if (!(rootVar in variableStructures)) {
+                    variableStructures[rootVar] = true; // Default boolean for if conditions
+                }
+                // Don't override existing objects/arrays with boolean when used in truthiness check
             }
-            // Don't override existing objects/arrays with boolean when used in truthiness check
         }
     }
     
@@ -431,6 +539,12 @@ function extractVariablesFromTemplate(template) {
         const basePath = match[1];
         const index = parseInt(match[2]);
         const rootVar = basePath.split('.')[0];
+        
+        // Skip if it's a Jinja keyword
+        if (isJinjaKeyword(rootVar)) {
+            continue;
+        }
+        
         referencedVariables.add(rootVar);
         
         safeSetVariable(rootVar, basePath.includes('.') ? {} : [], true);
@@ -446,6 +560,12 @@ function extractVariablesFromTemplate(template) {
         const loopVar = match[1];
         const arrayVar = match[2];
         const loopContent = match[3];
+        
+        // Skip if it's a Jinja keyword
+        if (isJinjaKeyword(arrayVar)) {
+            continue;
+        }
+        
         referencedVariables.add(arrayVar);
         
         // Find properties accessed on the loop variable
