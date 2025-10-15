@@ -49,6 +49,18 @@ const showWhitespaceToggle = document.getElementById('show-whitespace-toggle');
 const themeToggle = document.getElementById('theme-toggle');
 const markdownToggle = document.getElementById('markdown-toggle');
 const mermaidToggle = document.getElementById('mermaid-toggle');
+const saveConfigBtn = document.getElementById('save-config-btn');
+const saveModalOverlay = document.getElementById('save-modal-overlay');
+const modalCloseBtn = document.getElementById('modal-close-btn');
+const modalCancelBtn = document.getElementById('modal-cancel-btn');
+const modalSaveBtn = document.getElementById('modal-save-btn');
+const configNameInput = document.getElementById('config-name');
+const burgerMenuBtn = document.getElementById('burger-menu-btn');
+const drawerOverlay = document.getElementById('drawer-overlay');
+const savedConfigsDrawer = document.getElementById('saved-configs-drawer');
+const drawerCloseBtn = document.getElementById('drawer-close-btn');
+const drawerContent = document.getElementById('drawer-content');
+const drawerEmptyMessage = document.getElementById('drawer-empty-message');
 
 // --- STATE MANAGEMENT ---
 let isFormMode = false;
@@ -101,6 +113,9 @@ async function setupPyodide() {
         isInitialized = true;
         loader.style.display = 'none';
         loadingOverlay.style.display = 'none';
+        
+        // Check for shared configuration in URL
+        loadFromUrlParam();
         
         // Initial render after setup
         update();
@@ -1062,6 +1077,558 @@ copyOutputBtn.addEventListener('click', async function() {
         document.execCommand('copy');
         document.body.removeChild(textArea);
         showButtonFeedback(this, 'Copied!', 1500);
+    }
+});
+
+// --- DRAWER FUNCTIONALITY ---
+
+/**
+ * Opens the saved configurations drawer
+ */
+function openDrawer() {
+    burgerMenuBtn.classList.add('active');
+    drawerOverlay.classList.add('active');
+    savedConfigsDrawer.classList.add('active');
+    loadSavedConfigurations();
+}
+
+/**
+ * Closes the saved configurations drawer
+ */
+function closeDrawer() {
+    burgerMenuBtn.classList.remove('active');
+    drawerOverlay.classList.remove('active');
+    savedConfigsDrawer.classList.remove('active');
+}
+
+/**
+ * Truncates text to a specified length
+ */
+function truncateText(text, maxLength = 100) {
+    if (text.length <= maxLength) return text;
+    return text.substring(0, maxLength) + '...';
+}
+
+/**
+ * Formats date for display
+ */
+function formatDate(isoString) {
+    const date = new Date(isoString);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+    
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined });
+}
+
+/**
+ * Creates a configuration card element
+ */
+function createConfigCard(config, index) {
+    const card = document.createElement('div');
+    card.className = 'config-card';
+    
+    // Header with name and date
+    const header = document.createElement('div');
+    header.className = 'config-card-header';
+    
+    const name = document.createElement('h3');
+    name.className = 'config-card-name';
+    name.textContent = config.name;
+    
+    const date = document.createElement('span');
+    date.className = 'config-card-date';
+    date.textContent = formatDate(config.timestamp);
+    
+    header.appendChild(name);
+    header.appendChild(date);
+    card.appendChild(header);
+    
+    // Template section
+    const templateSection = document.createElement('div');
+    templateSection.className = 'config-card-section';
+    
+    const templateLabel = document.createElement('div');
+    templateLabel.className = 'config-card-label';
+    templateLabel.textContent = 'Template';
+    
+    const templateContent = document.createElement('div');
+    templateContent.className = 'config-card-content';
+    templateContent.textContent = truncateText(config.template, 80);
+    
+    templateSection.appendChild(templateLabel);
+    templateSection.appendChild(templateContent);
+    card.appendChild(templateSection);
+    
+    // Variables section
+    const varsSection = document.createElement('div');
+    varsSection.className = 'config-card-section';
+    
+    const varsLabel = document.createElement('div');
+    varsLabel.className = 'config-card-label';
+    varsLabel.textContent = 'Variables';
+    
+    const varsContent = document.createElement('div');
+    varsContent.className = 'config-card-content';
+    const varsString = JSON.stringify(config.variables);
+    varsContent.textContent = truncateText(varsString, 80);
+    
+    varsSection.appendChild(varsLabel);
+    varsSection.appendChild(varsContent);
+    card.appendChild(varsSection);
+    
+    // Switch states section (if available)
+    if (config.switchStates) {
+        const activeSwitches = [];
+        if (config.switchStates.autoRerender) activeSwitches.push('Auto-rerender');
+        if (config.switchStates.markdown) activeSwitches.push('Markdown');
+        if (config.switchStates.mermaid) activeSwitches.push('Mermaid');
+        if (config.switchStates.showWhitespace) activeSwitches.push('Whitespace');
+        if (config.switchStates.textWrap) activeSwitches.push('Text Wrap');
+        
+        if (activeSwitches.length > 0) {
+            const switchesContainer = document.createElement('div');
+            switchesContainer.className = 'config-card-switches';
+            
+            activeSwitches.forEach(switchName => {
+                const badge = document.createElement('span');
+                badge.className = 'config-switch-badge';
+                badge.textContent = switchName;
+                switchesContainer.appendChild(badge);
+            });
+            
+            card.appendChild(switchesContainer);
+        }
+    }
+    
+    // Actions section
+    const actions = document.createElement('div');
+    actions.className = 'config-card-actions';
+    
+    const loadBtn = document.createElement('button');
+    loadBtn.className = 'config-action-btn load-btn';
+    loadBtn.textContent = 'Load';
+    loadBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        loadConfiguration(config);
+        closeDrawer();
+    });
+    
+    const shareBtn = document.createElement('button');
+    shareBtn.className = 'config-action-btn share-btn';
+    shareBtn.textContent = 'Share';
+    shareBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        shareConfiguration(config, shareBtn);
+    });
+    
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'config-action-btn delete-btn';
+    deleteBtn.textContent = 'Delete';
+    deleteBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        deleteConfiguration(index);
+    });
+    
+    actions.appendChild(loadBtn);
+    actions.appendChild(shareBtn);
+    actions.appendChild(deleteBtn);
+    card.appendChild(actions);
+    
+    return card;
+}
+
+/**
+ * Loads and displays all saved configurations in the drawer
+ */
+function loadSavedConfigurations() {
+    try {
+        const stored = localStorage.getItem('jinjaConfigurations');
+        const configs = stored ? JSON.parse(stored) : [];
+        
+        // Clear existing content except empty message
+        drawerContent.innerHTML = '';
+        
+        if (configs.length === 0) {
+            drawerEmptyMessage.style.display = 'block';
+            drawerContent.appendChild(drawerEmptyMessage);
+        } else {
+            drawerEmptyMessage.style.display = 'none';
+            
+            // Display configs in reverse order (newest first)
+            const reversedConfigs = [...configs].reverse();
+            reversedConfigs.forEach((config, index) => {
+                const actualIndex = configs.length - 1 - index; // Get actual index in original array
+                const card = createConfigCard(config, actualIndex);
+                drawerContent.appendChild(card);
+            });
+        }
+    } catch (e) {
+        console.error('Error loading saved configurations:', e);
+        drawerContent.innerHTML = '<p class="drawer-empty-message" style="color: #ef4444;">Error loading saved configurations.</p>';
+    }
+}
+
+/**
+ * Deletes a configuration by index
+ */
+function deleteConfiguration(index) {
+    try {
+        const stored = localStorage.getItem('jinjaConfigurations');
+        let configs = stored ? JSON.parse(stored) : [];
+        
+        if (index >= 0 && index < configs.length) {
+            configs.splice(index, 1);
+            localStorage.setItem('jinjaConfigurations', JSON.stringify(configs));
+            loadSavedConfigurations(); // Refresh the list
+        }
+    } catch (e) {
+        console.error('Error deleting configuration:', e);
+    }
+}
+
+/**
+ * Shares a configuration by creating a compressed URL
+ */
+async function shareConfiguration(config, button) {
+    try {
+        // Create a clean config object for sharing (without timestamp for shorter URL)
+        const shareConfig = {
+            name: config.name,
+            template: config.template,
+            variables: config.variables,
+            isFormMode: config.isFormMode,
+            switchStates: config.switchStates
+        };
+        
+        // Convert to JSON and compress
+        const json = JSON.stringify(shareConfig);
+        const compressed = LZString.compressToEncodedURIComponent(json);
+        
+        // Create share URL
+        const baseUrl = window.location.origin + window.location.pathname;
+        const shareUrl = `${baseUrl}?config=${compressed}`;
+        
+        // Copy to clipboard
+        await navigator.clipboard.writeText(shareUrl);
+        
+        // Show feedback
+        const originalText = button.textContent;
+        button.textContent = 'Copied!';
+        button.style.background = getComputedStyle(document.documentElement).getPropertyValue('--success-color').trim();
+        
+        setTimeout(() => {
+            button.textContent = originalText;
+            button.style.background = '';
+        }, 2000);
+        
+        console.log('Share URL length:', shareUrl.length);
+    } catch (err) {
+        console.error('Error sharing configuration:', err);
+        
+        // Fallback for older browsers
+        const originalText = button.textContent;
+        button.textContent = 'Error!';
+        button.style.background = '#ef4444';
+        
+        setTimeout(() => {
+            button.textContent = originalText;
+            button.style.background = '';
+        }, 2000);
+    }
+}
+
+/**
+ * Loads configuration from URL parameter on page load
+ */
+function loadFromUrlParam() {
+    try {
+        const urlParams = new URLSearchParams(window.location.search);
+        const configParam = urlParams.get('config');
+        
+        if (configParam) {
+            // Decompress the configuration
+            const decompressed = LZString.decompressFromEncodedURIComponent(configParam);
+            const config = JSON.parse(decompressed);
+            
+            // Load the configuration
+            loadConfiguration(config);
+            
+            // Clean up the URL (remove the parameter)
+            const cleanUrl = window.location.origin + window.location.pathname;
+            window.history.replaceState({}, document.title, cleanUrl);
+            
+            console.log('Loaded shared configuration:', config.name);
+        }
+    } catch (e) {
+        console.error('Error loading configuration from URL:', e);
+    }
+}
+
+// Burger menu button
+burgerMenuBtn.addEventListener('click', function() {
+    if (savedConfigsDrawer.classList.contains('active')) {
+        closeDrawer();
+    } else {
+        openDrawer();
+    }
+});
+
+// Drawer close button
+drawerCloseBtn.addEventListener('click', function() {
+    closeDrawer();
+});
+
+// Drawer overlay click
+drawerOverlay.addEventListener('click', function() {
+    closeDrawer();
+});
+
+// --- SAVE CONFIGURATION FUNCTIONALITY ---
+
+/**
+ * Opens the save configuration modal
+ */
+function openSaveModal() {
+    saveModalOverlay.classList.add('active');
+    configNameInput.value = '';
+    configNameInput.focus();
+}
+
+/**
+ * Closes the save configuration modal
+ */
+function closeSaveModal() {
+    saveModalOverlay.classList.remove('active');
+    configNameInput.value = '';
+}
+
+/**
+ * Saves the current configuration to local storage
+ */
+function saveConfiguration() {
+    const configName = configNameInput.value.trim();
+    
+    if (!configName) {
+        // Visual feedback for empty name
+        configNameInput.style.borderColor = '#ef4444';
+        configNameInput.placeholder = 'Please enter a name';
+        setTimeout(() => {
+            configNameInput.style.borderColor = '';
+            configNameInput.placeholder = 'Enter a name for this configuration';
+        }, 2000);
+        return;
+    }
+    
+    // Get current template and variables
+    const template = jinjaEditor.getValue();
+    const variables = getCurrentVariables();
+    
+    // Get all toggle/switch states
+    const switchStates = {
+        textWrap: textWrapToggle.checked,
+        autoRerender: autoRerenderToggle.checked,
+        showWhitespace: showWhitespaceToggle.checked,
+        markdown: markdownToggle.checked,
+        mermaid: mermaidToggle.checked,
+        theme: themeToggle.checked // light mode when checked
+    };
+    
+    // Create configuration object
+    const config = {
+        name: configName,
+        template: template,
+        variables: variables,
+        timestamp: new Date().toISOString(),
+        isFormMode: isFormMode,
+        switchStates: switchStates
+    };
+    
+    // Get existing saves from local storage
+    let savedConfigs = [];
+    try {
+        const stored = localStorage.getItem('jinjaConfigurations');
+        if (stored) {
+            savedConfigs = JSON.parse(stored);
+        }
+    } catch (e) {
+        console.error('Error loading saved configurations:', e);
+        savedConfigs = [];
+    }
+    
+    // Check if a configuration with the same name exists
+    const existingIndex = savedConfigs.findIndex(c => c.name === configName);
+    if (existingIndex !== -1) {
+        // Update existing configuration
+        savedConfigs[existingIndex] = config;
+    } else {
+        // Add new configuration
+        savedConfigs.push(config);
+    }
+    
+    // Save to local storage
+    try {
+        localStorage.setItem('jinjaConfigurations', JSON.stringify(savedConfigs));
+        
+        // Close modal
+        closeSaveModal();
+        
+        // Refresh drawer if it's open
+        if (savedConfigsDrawer.classList.contains('active')) {
+            loadSavedConfigurations();
+        }
+        
+        // Show success feedback
+        showButtonFeedback(saveConfigBtn, 'Saved!', 2000);
+    } catch (e) {
+        console.error('Error saving configuration:', e);
+        alert('Error saving configuration. Local storage might be full.');
+    }
+}
+
+/**
+ * Loads a saved configuration and restores all settings
+ */
+function loadConfiguration(config) {
+    // Set template
+    jinjaEditor.setValue(config.template || '');
+    
+    // Set variables
+    if (config.isFormMode) {
+        // Switch to form mode if needed
+        if (!isFormMode) {
+            toggleModeBtn.click();
+        }
+        currentVariableValues = config.variables || {};
+        createVariableForm(config.variables || {});
+    } else {
+        // Switch to JSON mode if needed
+        if (isFormMode) {
+            toggleModeBtn.click();
+        }
+        varsEditor.setValue(JSON.stringify(config.variables || {}, null, 2));
+    }
+    
+    // Restore switch states if they exist
+    if (config.switchStates) {
+        const states = config.switchStates;
+        
+        // Text wrap
+        if (textWrapToggle.checked !== states.textWrap) {
+            textWrapToggle.checked = states.textWrap;
+            jinjaEditor.setOption('lineWrapping', states.textWrap);
+            varsEditor.setOption('lineWrapping', states.textWrap);
+        }
+        
+        // Auto rerender
+        if (autoRerenderToggle.checked !== states.autoRerender) {
+            autoRerenderToggle.checked = states.autoRerender;
+            manualRerenderBtn.disabled = states.autoRerender;
+            setupEventListeners();
+        }
+        
+        // Show whitespace
+        if (showWhitespaceToggle.checked !== states.showWhitespace) {
+            showWhitespaceToggle.checked = states.showWhitespace;
+        }
+        
+        // Markdown mode
+        if (markdownToggle.checked !== states.markdown) {
+            markdownToggle.checked = states.markdown;
+            isMarkdownMode = states.markdown;
+            if (states.markdown) {
+                outputElement.style.display = 'none';
+                markdownOutputElement.style.display = 'block';
+                showWhitespaceToggle.disabled = true;
+                showWhitespaceToggle.parentElement.style.opacity = '0.5';
+            } else {
+                outputElement.style.display = 'block';
+                markdownOutputElement.style.display = 'none';
+                showWhitespaceToggle.disabled = false;
+                showWhitespaceToggle.parentElement.style.opacity = '1';
+            }
+        }
+        
+        // Mermaid mode
+        if (mermaidToggle.checked !== states.mermaid) {
+            mermaidToggle.checked = states.mermaid;
+            isMermaidMode = states.mermaid;
+            if (states.mermaid) {
+                outputElement.style.display = 'none';
+                markdownOutputElement.style.display = 'block';
+                showWhitespaceToggle.disabled = true;
+                showWhitespaceToggle.parentElement.style.opacity = '0.5';
+            } else {
+                outputElement.style.display = 'block';
+                markdownOutputElement.style.display = 'none';
+                showWhitespaceToggle.disabled = false;
+                showWhitespaceToggle.parentElement.style.opacity = '1';
+            }
+        }
+        
+        // Theme (optional - you might want to keep theme as a global preference)
+        // Uncomment if you want saved configs to restore theme as well
+        /*
+        if (themeToggle.checked !== states.theme) {
+            themeToggle.checked = states.theme;
+            themeToggle.dispatchEvent(new Event('change'));
+        }
+        */
+    }
+    
+    // Trigger update to render with new values
+    update();
+}
+
+// Save configuration button
+saveConfigBtn.addEventListener('click', function() {
+    openSaveModal();
+});
+
+// Modal close button
+modalCloseBtn.addEventListener('click', function() {
+    closeSaveModal();
+});
+
+// Modal cancel button
+modalCancelBtn.addEventListener('click', function() {
+    closeSaveModal();
+});
+
+// Modal save button
+modalSaveBtn.addEventListener('click', function() {
+    saveConfiguration();
+});
+
+// Close modal when clicking outside
+saveModalOverlay.addEventListener('click', function(e) {
+    if (e.target === saveModalOverlay) {
+        closeSaveModal();
+    }
+});
+
+// Handle Enter key in config name input
+configNameInput.addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+        saveConfiguration();
+    }
+});
+
+// Handle Escape key to close modal or drawer
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        if (saveModalOverlay.classList.contains('active')) {
+            closeSaveModal();
+        } else if (savedConfigsDrawer.classList.contains('active')) {
+            closeDrawer();
+        }
     }
 });
 
