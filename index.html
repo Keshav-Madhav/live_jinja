@@ -25,8 +25,29 @@
     <div class="loading-overlay" id="loading-overlay"></div>
     <div id="loader">Loading Python Environment...</div>
 
+    <!-- Drawer Overlay -->
+    <div class="drawer-overlay" id="drawer-overlay"></div>
+
+    <!-- Saved Configurations Drawer -->
+    <div class="drawer" id="saved-configs-drawer">
+        <div class="drawer-header">
+            <h2>Saved Configurations</h2>
+            <button class="drawer-close" id="drawer-close-btn">&times;</button>
+        </div>
+        <div class="drawer-content" id="drawer-content">
+            <p class="drawer-empty-message" id="drawer-empty-message">No saved configurations yet. Save your first configuration to get started!</p>
+        </div>
+    </div>
+
     <header class="main-header">
-        <h1>Live Jinja Parser (Pyodide) 🐍</h1>
+        <div class="header-left">
+            <button class="burger-menu" id="burger-menu-btn" aria-label="Open saved configurations">
+                <span class="burger-line"></span>
+                <span class="burger-line"></span>
+                <span class="burger-line"></span>
+            </button>
+            <h1>Live Jinja Parser (Pyodide) 🐍</h1>
+        </div>
         <div class="theme-toggle-container">
             <button class="header-btn" id="save-config-btn">Save Configuration</button>
             <span class="theme-label">Light Mode</span>

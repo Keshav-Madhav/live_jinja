@@ -55,6 +55,12 @@ const modalCloseBtn = document.getElementById('modal-close-btn');
 const modalCancelBtn = document.getElementById('modal-cancel-btn');
 const modalSaveBtn = document.getElementById('modal-save-btn');
 const configNameInput = document.getElementById('config-name');
+const burgerMenuBtn = document.getElementById('burger-menu-btn');
+const drawerOverlay = document.getElementById('drawer-overlay');
+const savedConfigsDrawer = document.getElementById('saved-configs-drawer');
+const drawerCloseBtn = document.getElementById('drawer-close-btn');
+const drawerContent = document.getElementById('drawer-content');
+const drawerEmptyMessage = document.getElementById('drawer-empty-message');
 
 // --- STATE MANAGEMENT ---
 let isFormMode = false;
@@ -1071,6 +1077,230 @@ copyOutputBtn.addEventListener('click', async function() {
     }
 });
 
+// --- DRAWER FUNCTIONALITY ---
+
+/**
+ * Opens the saved configurations drawer
+ */
+function openDrawer() {
+    burgerMenuBtn.classList.add('active');
+    drawerOverlay.classList.add('active');
+    savedConfigsDrawer.classList.add('active');
+    loadSavedConfigurations();
+}
+
+/**
+ * Closes the saved configurations drawer
+ */
+function closeDrawer() {
+    burgerMenuBtn.classList.remove('active');
+    drawerOverlay.classList.remove('active');
+    savedConfigsDrawer.classList.remove('active');
+}
+
+/**
+ * Truncates text to a specified length
+ */
+function truncateText(text, maxLength = 100) {
+    if (text.length <= maxLength) return text;
+    return text.substring(0, maxLength) + '...';
+}
+
+/**
+ * Formats date for display
+ */
+function formatDate(isoString) {
+    const date = new Date(isoString);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+    
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined });
+}
+
+/**
+ * Creates a configuration card element
+ */
+function createConfigCard(config, index) {
+    const card = document.createElement('div');
+    card.className = 'config-card';
+    
+    // Header with name and date
+    const header = document.createElement('div');
+    header.className = 'config-card-header';
+    
+    const name = document.createElement('h3');
+    name.className = 'config-card-name';
+    name.textContent = config.name;
+    
+    const date = document.createElement('span');
+    date.className = 'config-card-date';
+    date.textContent = formatDate(config.timestamp);
+    
+    header.appendChild(name);
+    header.appendChild(date);
+    card.appendChild(header);
+    
+    // Template section
+    const templateSection = document.createElement('div');
+    templateSection.className = 'config-card-section';
+    
+    const templateLabel = document.createElement('div');
+    templateLabel.className = 'config-card-label';
+    templateLabel.textContent = 'Template';
+    
+    const templateContent = document.createElement('div');
+    templateContent.className = 'config-card-content';
+    templateContent.textContent = truncateText(config.template, 80);
+    
+    templateSection.appendChild(templateLabel);
+    templateSection.appendChild(templateContent);
+    card.appendChild(templateSection);
+    
+    // Variables section
+    const varsSection = document.createElement('div');
+    varsSection.className = 'config-card-section';
+    
+    const varsLabel = document.createElement('div');
+    varsLabel.className = 'config-card-label';
+    varsLabel.textContent = 'Variables';
+    
+    const varsContent = document.createElement('div');
+    varsContent.className = 'config-card-content';
+    const varsString = JSON.stringify(config.variables);
+    varsContent.textContent = truncateText(varsString, 80);
+    
+    varsSection.appendChild(varsLabel);
+    varsSection.appendChild(varsContent);
+    card.appendChild(varsSection);
+    
+    // Switch states section (if available)
+    if (config.switchStates) {
+        const activeSwitches = [];
+        if (config.switchStates.autoRerender) activeSwitches.push('Auto-rerender');
+        if (config.switchStates.markdown) activeSwitches.push('Markdown');
+        if (config.switchStates.mermaid) activeSwitches.push('Mermaid');
+        if (config.switchStates.showWhitespace) activeSwitches.push('Whitespace');
+        if (config.switchStates.textWrap) activeSwitches.push('Text Wrap');
+        
+        if (activeSwitches.length > 0) {
+            const switchesContainer = document.createElement('div');
+            switchesContainer.className = 'config-card-switches';
+            
+            activeSwitches.forEach(switchName => {
+                const badge = document.createElement('span');
+                badge.className = 'config-switch-badge';
+                badge.textContent = switchName;
+                switchesContainer.appendChild(badge);
+            });
+            
+            card.appendChild(switchesContainer);
+        }
+    }
+    
+    // Actions section
+    const actions = document.createElement('div');
+    actions.className = 'config-card-actions';
+    
+    const loadBtn = document.createElement('button');
+    loadBtn.className = 'config-action-btn load-btn';
+    loadBtn.textContent = 'Load';
+    loadBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        loadConfiguration(config);
+        closeDrawer();
+    });
+    
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'config-action-btn delete-btn';
+    deleteBtn.textContent = 'Delete';
+    deleteBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        deleteConfiguration(index);
+    });
+    
+    actions.appendChild(loadBtn);
+    actions.appendChild(deleteBtn);
+    card.appendChild(actions);
+    
+    return card;
+}
+
+/**
+ * Loads and displays all saved configurations in the drawer
+ */
+function loadSavedConfigurations() {
+    try {
+        const stored = localStorage.getItem('jinjaConfigurations');
+        const configs = stored ? JSON.parse(stored) : [];
+        
+        // Clear existing content except empty message
+        drawerContent.innerHTML = '';
+        
+        if (configs.length === 0) {
+            drawerEmptyMessage.style.display = 'block';
+            drawerContent.appendChild(drawerEmptyMessage);
+        } else {
+            drawerEmptyMessage.style.display = 'none';
+            
+            // Display configs in reverse order (newest first)
+            const reversedConfigs = [...configs].reverse();
+            reversedConfigs.forEach((config, index) => {
+                const actualIndex = configs.length - 1 - index; // Get actual index in original array
+                const card = createConfigCard(config, actualIndex);
+                drawerContent.appendChild(card);
+            });
+        }
+    } catch (e) {
+        console.error('Error loading saved configurations:', e);
+        drawerContent.innerHTML = '<p class="drawer-empty-message" style="color: #ef4444;">Error loading saved configurations.</p>';
+    }
+}
+
+/**
+ * Deletes a configuration by index
+ */
+function deleteConfiguration(index) {
+    try {
+        const stored = localStorage.getItem('jinjaConfigurations');
+        let configs = stored ? JSON.parse(stored) : [];
+        
+        if (index >= 0 && index < configs.length) {
+            configs.splice(index, 1);
+            localStorage.setItem('jinjaConfigurations', JSON.stringify(configs));
+            loadSavedConfigurations(); // Refresh the list
+        }
+    } catch (e) {
+        console.error('Error deleting configuration:', e);
+    }
+}
+
+// Burger menu button
+burgerMenuBtn.addEventListener('click', function() {
+    if (savedConfigsDrawer.classList.contains('active')) {
+        closeDrawer();
+    } else {
+        openDrawer();
+    }
+});
+
+// Drawer close button
+drawerCloseBtn.addEventListener('click', function() {
+    closeDrawer();
+});
+
+// Drawer overlay click
+drawerOverlay.addEventListener('click', function() {
+    closeDrawer();
+});
+
 // --- SAVE CONFIGURATION FUNCTIONALITY ---
 
 /**
@@ -1159,6 +1389,11 @@ function saveConfiguration() {
         
         // Close modal
         closeSaveModal();
+        
+        // Refresh drawer if it's open
+        if (savedConfigsDrawer.classList.contains('active')) {
+            loadSavedConfigurations();
+        }
         
         // Show success feedback
         showButtonFeedback(saveConfigBtn, 'Saved!', 2000);
@@ -1296,10 +1531,14 @@ configNameInput.addEventListener('keypress', function(e) {
     }
 });
 
-// Handle Escape key to close modal
+// Handle Escape key to close modal or drawer
 document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape' && saveModalOverlay.classList.contains('active')) {
-        closeSaveModal();
+    if (e.key === 'Escape') {
+        if (saveModalOverlay.classList.contains('active')) {
+            closeSaveModal();
+        } else if (savedConfigsDrawer.classList.contains('active')) {
+            closeDrawer();
+        }
     }
 });
 
