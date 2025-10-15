@@ -47,6 +47,7 @@ const variablesHeader = document.getElementById('variables-header');
 const copyTemplateBtn = document.getElementById('copy-template-btn');
 const copyOutputBtn = document.getElementById('copy-output-btn');
 const showWhitespaceToggle = document.getElementById('show-whitespace-toggle');
+const removeExtraWhitespaceToggle = document.getElementById('remove-extra-whitespace-toggle');
 const themeToggle = document.getElementById('theme-toggle');
 const markdownToggle = document.getElementById('markdown-toggle');
 const mermaidToggle = document.getElementById('mermaid-toggle');
@@ -210,6 +211,24 @@ function renderWhitespace(text) {
         .replace(/ /g, '<span class="whitespace-char space"> </span>')
         .replace(/\t/g, '<span class="whitespace-char tab">\t</span>')
         .replace(/\n/g, '<span class="whitespace-char newline"></span>\n');
+}
+
+/**
+ * Removes extra whitespace (multiple newlines, spaces, and tabs)
+ * Also handles alternating patterns like space-newline-space-newline
+ */
+function removeExtraWhitespace(text) {
+    return text
+        // First pass: collapse lines that only contain whitespace (spaces/tabs) into empty lines
+        .replace(/^[ \t]+$/gm, '')
+        // Second pass: replace multiple consecutive empty lines with at most 2 newlines
+        .replace(/\n{3,}/g, '\n\n')
+        // Third pass: replace multiple spaces with single space
+        .replace(/ {2,}/g, ' ')
+        // Fourth pass: replace multiple tabs with single tab
+        .replace(/\t{2,}/g, '\t')
+        // Fifth pass: clean up any remaining whitespace-only lines followed by more newlines
+        .replace(/\n[ \t]*\n[ \t]*\n/g, '\n\n');
 }
 
 /**
@@ -1043,31 +1062,37 @@ except Exception as e:
 result
         `);
         
+        // Apply extra whitespace removal if enabled
+        let processedResult = result;
+        if (removeExtraWhitespaceToggle.checked) {
+            processedResult = removeExtraWhitespace(result);
+        }
+        
         // Store the result
-        lastRenderedOutput = result;
+        lastRenderedOutput = processedResult;
         
         // Set the main content based on mode
         if (isMermaidMode) {
             // Render as pure mermaid diagram
             outputElement.style.display = 'none';
             markdownOutputElement.style.display = 'block';
-            await renderPureMermaid(result);
+            await renderPureMermaid(processedResult);
         } else if (isMarkdownMode) {
             // Render as markdown
             outputElement.style.display = 'none';
             markdownOutputElement.style.display = 'block';
-            await renderMarkdown(result);
+            await renderMarkdown(processedResult);
         } else {
             // Render as plain text
             outputElement.style.display = 'block';
             markdownOutputElement.style.display = 'none';
             
             if (showWhitespaceToggle.checked) {
-                outputElement.innerHTML = renderWhitespace(result);
+                outputElement.innerHTML = renderWhitespace(processedResult);
             } else {
-                outputElement.textContent = result;
+                outputElement.textContent = processedResult;
             }
-            outputElement.className = result.includes('Error:') ? 'error' : '';
+            outputElement.className = processedResult.includes('Error:') ? 'error' : '';
         }
     } catch (e) {
         outputElement.textContent = `Python execution error: ${e.message}`;
@@ -1208,6 +1233,14 @@ showWhitespaceToggle.addEventListener('change', function() {
     const message = this.checked ? 'Whitespace visible' : 'Whitespace hidden';
     showToggleFeedback(this.parentElement, message);
 });
+
+// Remove extra whitespace toggle
+removeExtraWhitespaceToggle.addEventListener('change', function() {
+    update(); // Re-render the output with the new setting
+    const message = this.checked ? 'Extra whitespace removed' : 'Extra whitespace kept';
+    showToggleFeedback(this.parentElement, message);
+});
+
 
 // Markdown toggle
 markdownToggle.addEventListener('change', async function() {
@@ -1491,6 +1524,7 @@ function createConfigCard(config, index) {
         if (config.switchStates.markdown) activeSwitches.push('Markdown');
         if (config.switchStates.mermaid) activeSwitches.push('Mermaid');
         if (config.switchStates.showWhitespace) activeSwitches.push('Whitespace');
+        if (config.switchStates.removeExtraWhitespace) activeSwitches.push('Remove Extra');
         if (config.switchStates.textWrap) activeSwitches.push('Text Wrap');
         
         if (activeSwitches.length > 0) {
@@ -1711,6 +1745,7 @@ async function shareCurrentConfiguration() {
             textWrap: textWrapToggle.checked,
             autoRerender: autoRerenderToggle.checked,
             showWhitespace: showWhitespaceToggle.checked,
+            removeExtraWhitespace: removeExtraWhitespaceToggle.checked,
             markdown: markdownToggle.checked,
             mermaid: mermaidToggle.checked,
             theme: themeToggle.checked
@@ -1884,6 +1919,7 @@ function saveConfiguration() {
         textWrap: textWrapToggle.checked,
         autoRerender: autoRerenderToggle.checked,
         showWhitespace: showWhitespaceToggle.checked,
+        removeExtraWhitespace: removeExtraWhitespaceToggle.checked,
         markdown: markdownToggle.checked,
         mermaid: mermaidToggle.checked,
         theme: themeToggle.checked // light mode when checked
@@ -1985,6 +2021,12 @@ function loadConfiguration(config) {
         // Show whitespace
         if (showWhitespaceToggle.checked !== states.showWhitespace) {
             showWhitespaceToggle.checked = states.showWhitespace;
+        }
+        
+        // Remove extra whitespace (default to true if not present in old configs)
+        const removeExtraState = states.removeExtraWhitespace !== undefined ? states.removeExtraWhitespace : true;
+        if (removeExtraWhitespaceToggle.checked !== removeExtraState) {
+            removeExtraWhitespaceToggle.checked = removeExtraState;
         }
         
         // Markdown mode

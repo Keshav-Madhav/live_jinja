@@ -44,6 +44,12 @@ Perfect for developers who need to **render Jinja2 templates online**, **test Ji
   - **Embedded Mode**: Mix markdown text with Mermaid diagrams
   - **Pure Mode**: Treat entire output as a single Mermaid diagram
 - **Whitespace Visualization**: Toggle to show spaces (·), tabs (→), and newlines (↵)
+- **Remove Extra Whitespace**: Automatically clean up excessive whitespace in output
+  - Collapses 3+ consecutive newlines to maximum 2 blank lines
+  - Reduces multiple spaces to single space
+  - Reduces multiple tabs to single tab
+  - Handles alternating space/newline patterns
+  - Enabled by default for cleaner output
 - **Error Handling**: Clear error messages for template syntax and JSON parsing errors
 - **Loading States**: Visual feedback during Python environment initialization
 
@@ -147,12 +153,13 @@ The tool intelligently analyzes your template and creates appropriate variable s
 ### Output Modes
 Three powerful ways to view your rendered templates:
 - **Plain Text**: Standard output with optional whitespace visualization (·→↵)
+- **Remove Extra**: Toggle to clean up excessive whitespace (enabled by default)
 - **Markdown**: Full markdown rendering with embedded Mermaid diagrams
 - **Mermaid**: Pure diagram mode - entire output becomes a single diagram
 
 ### Save, Share, and Reload Workflows
 - **Drawer-Based Management**: Browse all saved templates in a drawer with metadata and quick actions
-- **Configuration Snapshots**: Each save captures template source, variable values, rendering toggles, and layout state
+- **Configuration Snapshots**: Each save captures template source, variable values, rendering toggles (auto-rerender, markdown, mermaid, whitespace, remove extra whitespace, text wrap), and layout state
 - **Shareable Links**: Compress current state into a URL for teammates to load identical sessions instantly (no backend required)
 - **Rename or Delete**: Keep collections tidy with inline rename and delete controls
 
