@@ -114,6 +114,9 @@ async function setupPyodide() {
         loader.style.display = 'none';
         loadingOverlay.style.display = 'none';
         
+        // Check for shared configuration in URL
+        loadFromUrlParam();
+        
         // Initial render after setup
         update();
     } catch (error) {
@@ -1218,6 +1221,14 @@ function createConfigCard(config, index) {
         closeDrawer();
     });
     
+    const shareBtn = document.createElement('button');
+    shareBtn.className = 'config-action-btn share-btn';
+    shareBtn.textContent = 'Share';
+    shareBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        shareConfiguration(config, shareBtn);
+    });
+    
     const deleteBtn = document.createElement('button');
     deleteBtn.className = 'config-action-btn delete-btn';
     deleteBtn.textContent = 'Delete';
@@ -1227,6 +1238,7 @@ function createConfigCard(config, index) {
     });
     
     actions.appendChild(loadBtn);
+    actions.appendChild(shareBtn);
     actions.appendChild(deleteBtn);
     card.appendChild(actions);
     
@@ -1279,6 +1291,84 @@ function deleteConfiguration(index) {
         }
     } catch (e) {
         console.error('Error deleting configuration:', e);
+    }
+}
+
+/**
+ * Shares a configuration by creating a compressed URL
+ */
+async function shareConfiguration(config, button) {
+    try {
+        // Create a clean config object for sharing (without timestamp for shorter URL)
+        const shareConfig = {
+            name: config.name,
+            template: config.template,
+            variables: config.variables,
+            isFormMode: config.isFormMode,
+            switchStates: config.switchStates
+        };
+        
+        // Convert to JSON and compress
+        const json = JSON.stringify(shareConfig);
+        const compressed = LZString.compressToEncodedURIComponent(json);
+        
+        // Create share URL
+        const baseUrl = window.location.origin + window.location.pathname;
+        const shareUrl = `${baseUrl}?config=${compressed}`;
+        
+        // Copy to clipboard
+        await navigator.clipboard.writeText(shareUrl);
+        
+        // Show feedback
+        const originalText = button.textContent;
+        button.textContent = 'Copied!';
+        button.style.background = getComputedStyle(document.documentElement).getPropertyValue('--success-color').trim();
+        
+        setTimeout(() => {
+            button.textContent = originalText;
+            button.style.background = '';
+        }, 2000);
+        
+        console.log('Share URL length:', shareUrl.length);
+    } catch (err) {
+        console.error('Error sharing configuration:', err);
+        
+        // Fallback for older browsers
+        const originalText = button.textContent;
+        button.textContent = 'Error!';
+        button.style.background = '#ef4444';
+        
+        setTimeout(() => {
+            button.textContent = originalText;
+            button.style.background = '';
+        }, 2000);
+    }
+}
+
+/**
+ * Loads configuration from URL parameter on page load
+ */
+function loadFromUrlParam() {
+    try {
+        const urlParams = new URLSearchParams(window.location.search);
+        const configParam = urlParams.get('config');
+        
+        if (configParam) {
+            // Decompress the configuration
+            const decompressed = LZString.decompressFromEncodedURIComponent(configParam);
+            const config = JSON.parse(decompressed);
+            
+            // Load the configuration
+            loadConfiguration(config);
+            
+            // Clean up the URL (remove the parameter)
+            const cleanUrl = window.location.origin + window.location.pathname;
+            window.history.replaceState({}, document.title, cleanUrl);
+            
+            console.log('Loaded shared configuration:', config.name);
+        }
+    } catch (e) {
+        console.error('Error loading configuration from URL:', e);
     }
 }
 

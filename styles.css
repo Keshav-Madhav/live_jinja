@@ -1316,6 +1316,16 @@ body.dark-mode .markdown-content .mermaid svg {
     box-shadow: 0 2px 8px rgba(59, 130, 246, 0.4);
 }
 
+.config-action-btn.share-btn {
+    background: rgba(139, 92, 246, 0.1);
+    color: #8b5cf6;
+    border-color: rgba(139, 92, 246, 0.3);
+}
+
+.config-action-btn.share-btn:hover {
+    background: rgba(139, 92, 246, 0.2);
+}
+
 .config-action-btn.delete-btn {
     background: rgba(239, 68, 68, 0.1);
     color: #ef4444;
