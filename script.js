@@ -49,6 +49,12 @@ const showWhitespaceToggle = document.getElementById('show-whitespace-toggle');
 const themeToggle = document.getElementById('theme-toggle');
 const markdownToggle = document.getElementById('markdown-toggle');
 const mermaidToggle = document.getElementById('mermaid-toggle');
+const saveConfigBtn = document.getElementById('save-config-btn');
+const saveModalOverlay = document.getElementById('save-modal-overlay');
+const modalCloseBtn = document.getElementById('modal-close-btn');
+const modalCancelBtn = document.getElementById('modal-cancel-btn');
+const modalSaveBtn = document.getElementById('modal-save-btn');
+const configNameInput = document.getElementById('config-name');
 
 // --- STATE MANAGEMENT ---
 let isFormMode = false;
@@ -1062,6 +1068,238 @@ copyOutputBtn.addEventListener('click', async function() {
         document.execCommand('copy');
         document.body.removeChild(textArea);
         showButtonFeedback(this, 'Copied!', 1500);
+    }
+});
+
+// --- SAVE CONFIGURATION FUNCTIONALITY ---
+
+/**
+ * Opens the save configuration modal
+ */
+function openSaveModal() {
+    saveModalOverlay.classList.add('active');
+    configNameInput.value = '';
+    configNameInput.focus();
+}
+
+/**
+ * Closes the save configuration modal
+ */
+function closeSaveModal() {
+    saveModalOverlay.classList.remove('active');
+    configNameInput.value = '';
+}
+
+/**
+ * Saves the current configuration to local storage
+ */
+function saveConfiguration() {
+    const configName = configNameInput.value.trim();
+    
+    if (!configName) {
+        // Visual feedback for empty name
+        configNameInput.style.borderColor = '#ef4444';
+        configNameInput.placeholder = 'Please enter a name';
+        setTimeout(() => {
+            configNameInput.style.borderColor = '';
+            configNameInput.placeholder = 'Enter a name for this configuration';
+        }, 2000);
+        return;
+    }
+    
+    // Get current template and variables
+    const template = jinjaEditor.getValue();
+    const variables = getCurrentVariables();
+    
+    // Get all toggle/switch states
+    const switchStates = {
+        textWrap: textWrapToggle.checked,
+        autoRerender: autoRerenderToggle.checked,
+        showWhitespace: showWhitespaceToggle.checked,
+        markdown: markdownToggle.checked,
+        mermaid: mermaidToggle.checked,
+        theme: themeToggle.checked // light mode when checked
+    };
+    
+    // Create configuration object
+    const config = {
+        name: configName,
+        template: template,
+        variables: variables,
+        timestamp: new Date().toISOString(),
+        isFormMode: isFormMode,
+        switchStates: switchStates
+    };
+    
+    // Get existing saves from local storage
+    let savedConfigs = [];
+    try {
+        const stored = localStorage.getItem('jinjaConfigurations');
+        if (stored) {
+            savedConfigs = JSON.parse(stored);
+        }
+    } catch (e) {
+        console.error('Error loading saved configurations:', e);
+        savedConfigs = [];
+    }
+    
+    // Check if a configuration with the same name exists
+    const existingIndex = savedConfigs.findIndex(c => c.name === configName);
+    if (existingIndex !== -1) {
+        // Update existing configuration
+        savedConfigs[existingIndex] = config;
+    } else {
+        // Add new configuration
+        savedConfigs.push(config);
+    }
+    
+    // Save to local storage
+    try {
+        localStorage.setItem('jinjaConfigurations', JSON.stringify(savedConfigs));
+        
+        // Close modal
+        closeSaveModal();
+        
+        // Show success feedback
+        showButtonFeedback(saveConfigBtn, 'Saved!', 2000);
+    } catch (e) {
+        console.error('Error saving configuration:', e);
+        alert('Error saving configuration. Local storage might be full.');
+    }
+}
+
+/**
+ * Loads a saved configuration and restores all settings
+ */
+function loadConfiguration(config) {
+    // Set template
+    jinjaEditor.setValue(config.template || '');
+    
+    // Set variables
+    if (config.isFormMode) {
+        // Switch to form mode if needed
+        if (!isFormMode) {
+            toggleModeBtn.click();
+        }
+        currentVariableValues = config.variables || {};
+        createVariableForm(config.variables || {});
+    } else {
+        // Switch to JSON mode if needed
+        if (isFormMode) {
+            toggleModeBtn.click();
+        }
+        varsEditor.setValue(JSON.stringify(config.variables || {}, null, 2));
+    }
+    
+    // Restore switch states if they exist
+    if (config.switchStates) {
+        const states = config.switchStates;
+        
+        // Text wrap
+        if (textWrapToggle.checked !== states.textWrap) {
+            textWrapToggle.checked = states.textWrap;
+            jinjaEditor.setOption('lineWrapping', states.textWrap);
+            varsEditor.setOption('lineWrapping', states.textWrap);
+        }
+        
+        // Auto rerender
+        if (autoRerenderToggle.checked !== states.autoRerender) {
+            autoRerenderToggle.checked = states.autoRerender;
+            manualRerenderBtn.disabled = states.autoRerender;
+            setupEventListeners();
+        }
+        
+        // Show whitespace
+        if (showWhitespaceToggle.checked !== states.showWhitespace) {
+            showWhitespaceToggle.checked = states.showWhitespace;
+        }
+        
+        // Markdown mode
+        if (markdownToggle.checked !== states.markdown) {
+            markdownToggle.checked = states.markdown;
+            isMarkdownMode = states.markdown;
+            if (states.markdown) {
+                outputElement.style.display = 'none';
+                markdownOutputElement.style.display = 'block';
+                showWhitespaceToggle.disabled = true;
+                showWhitespaceToggle.parentElement.style.opacity = '0.5';
+            } else {
+                outputElement.style.display = 'block';
+                markdownOutputElement.style.display = 'none';
+                showWhitespaceToggle.disabled = false;
+                showWhitespaceToggle.parentElement.style.opacity = '1';
+            }
+        }
+        
+        // Mermaid mode
+        if (mermaidToggle.checked !== states.mermaid) {
+            mermaidToggle.checked = states.mermaid;
+            isMermaidMode = states.mermaid;
+            if (states.mermaid) {
+                outputElement.style.display = 'none';
+                markdownOutputElement.style.display = 'block';
+                showWhitespaceToggle.disabled = true;
+                showWhitespaceToggle.parentElement.style.opacity = '0.5';
+            } else {
+                outputElement.style.display = 'block';
+                markdownOutputElement.style.display = 'none';
+                showWhitespaceToggle.disabled = false;
+                showWhitespaceToggle.parentElement.style.opacity = '1';
+            }
+        }
+        
+        // Theme (optional - you might want to keep theme as a global preference)
+        // Uncomment if you want saved configs to restore theme as well
+        /*
+        if (themeToggle.checked !== states.theme) {
+            themeToggle.checked = states.theme;
+            themeToggle.dispatchEvent(new Event('change'));
+        }
+        */
+    }
+    
+    // Trigger update to render with new values
+    update();
+}
+
+// Save configuration button
+saveConfigBtn.addEventListener('click', function() {
+    openSaveModal();
+});
+
+// Modal close button
+modalCloseBtn.addEventListener('click', function() {
+    closeSaveModal();
+});
+
+// Modal cancel button
+modalCancelBtn.addEventListener('click', function() {
+    closeSaveModal();
+});
+
+// Modal save button
+modalSaveBtn.addEventListener('click', function() {
+    saveConfiguration();
+});
+
+// Close modal when clicking outside
+saveModalOverlay.addEventListener('click', function(e) {
+    if (e.target === saveModalOverlay) {
+        closeSaveModal();
+    }
+});
+
+// Handle Enter key in config name input
+configNameInput.addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+        saveConfiguration();
+    }
+});
+
+// Handle Escape key to close modal
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && saveModalOverlay.classList.contains('active')) {
+        closeSaveModal();
     }
 });
 
