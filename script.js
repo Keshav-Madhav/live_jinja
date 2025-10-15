@@ -41,6 +41,7 @@ const autoRerenderToggle = document.getElementById('auto-rerender-toggle');
 const manualRerenderBtn = document.getElementById('manual-rerender');
 const extractVariablesBtn = document.getElementById('extract-variables-header');
 const toggleModeBtn = document.getElementById('toggle-mode');
+const syncFormBtn = document.getElementById('sync-form-btn');
 const variablesForm = document.getElementById('variables-form');
 const variablesHeader = document.getElementById('variables-header');
 const copyTemplateBtn = document.getElementById('copy-template-btn');
@@ -474,6 +475,49 @@ function extractVariablesFromTemplate(template) {
 }
 
 /**
+ * Helper function to set nested object values using dot notation
+ */
+function setNestedValue(obj, path, value) {
+    const keys = path.split('.');
+    let current = obj;
+    
+    for (let i = 0; i < keys.length - 1; i++) {
+        if (!(keys[i] in current) || typeof current[keys[i]] !== 'object') {
+            current[keys[i]] = {};
+        }
+        current = current[keys[i]];
+    }
+    
+    current[keys[keys.length - 1]] = value;
+}
+
+/**
+ * Syncs form data back to JSON editor in real-time
+ */
+function syncFormToJson() {
+    if (isFormMode) {
+        const currentVars = getCurrentVariables();
+        const jsonString = JSON.stringify(currentVars, null, 2);
+        
+        // Only update if content actually changed to avoid cursor jumping
+        if (varsEditor.getValue() !== jsonString) {
+            varsEditor.setValue(jsonString);
+            
+            // Add visual feedback for sync
+            if (syncFormBtn && syncFormBtn.style.display !== 'none') {
+                const originalText = syncFormBtn.textContent;
+                syncFormBtn.textContent = '✓';
+                syncFormBtn.style.color = '#10b981';
+                setTimeout(() => {
+                    syncFormBtn.textContent = originalText;
+                    syncFormBtn.style.color = '';
+                }, 500);
+            }
+        }
+    }
+}
+
+/**
  * Creates form inputs for extracted variables
  */
 function createVariableForm(variableStructures) {
@@ -523,6 +567,10 @@ function createVariableForm(variableStructures) {
                     this.style.borderColor = '#d32f2f';
                     currentVariableValues[baseName] = this.value;
                 }
+                
+                // Sync to JSON editor
+                syncFormToJson();
+                
                 if (autoRerenderToggle.checked) {
                     debounce(update, 300)();
                 }
@@ -567,13 +615,11 @@ function createVariableForm(variableStructures) {
                     if (typeof value === 'boolean') {
                         input.checked = value;
                         input.addEventListener('change', function() {
-                            const path = this.name.split('.');
-                            let current = currentVariableValues;
-                            for (let i = 0; i < path.length - 1; i++) {
-                                if (!(path[i] in current)) current[path[i]] = {};
-                                current = current[path[i]];
-                            }
-                            current[path[path.length - 1]] = this.checked;
+                            setNestedValue(currentVariableValues, this.name, this.checked);
+                            
+                            // Sync to JSON editor
+                            syncFormToJson();
+                            
                             if (autoRerenderToggle.checked) {
                                 debounce(update, 300)();
                             }
@@ -581,13 +627,11 @@ function createVariableForm(variableStructures) {
                     } else {
                         input.value = value;
                         input.addEventListener('input', function() {
-                            const path = this.name.split('.');
-                            let current = currentVariableValues;
-                            for (let i = 0; i < path.length - 1; i++) {
-                                if (!(path[i] in current)) current[path[i]] = {};
-                                current = current[path[i]];
-                            }
-                            current[path[path.length - 1]] = this.value;
+                            setNestedValue(currentVariableValues, this.name, this.value);
+                            
+                            // Sync to JSON editor
+                            syncFormToJson();
+                            
                             if (autoRerenderToggle.checked) {
                                 debounce(update, 300)();
                             }
@@ -624,6 +668,10 @@ function createVariableForm(variableStructures) {
                         this.style.borderColor = '#d32f2f';
                         currentVariableValues[baseName] = this.value;
                     }
+                    
+                    // Sync to JSON editor
+                    syncFormToJson();
+                    
                     if (autoRerenderToggle.checked) {
                         debounce(update, 300)();
                     }
@@ -633,50 +681,167 @@ function createVariableForm(variableStructures) {
             }
             
         } else {
-            // Handle primitive values
+            // Handle primitive values with type selection
             const inputDiv = document.createElement('div');
             inputDiv.className = 'variable-input';
+            
+            // Create header with label and type selector
+            const headerDiv = document.createElement('div');
+            headerDiv.className = 'variable-header';
             
             const label = document.createElement('label');
             label.textContent = baseName;
             label.setAttribute('for', `var-${baseName}`);
             
-            const input = document.createElement(typeof structure === 'boolean' ? 'input' : 
-                (typeof structure === 'string' && structure.length > 50) ? 'textarea' : 'input');
+            // Type selector dropdown
+            const typeSelect = document.createElement('select');
+            typeSelect.className = 'type-selector';
             
-            input.id = `var-${baseName}`;
-            input.name = baseName;
+            const types = [
+                { value: 'string', label: 'Text' },
+                { value: 'number', label: 'Number' },
+                { value: 'boolean', label: 'Boolean' },
+                { value: 'json', label: 'JSON' }
+            ];
             
+            // Detect current type
+            let currentType = 'string';
             if (typeof structure === 'boolean') {
-                input.type = 'checkbox';
-                input.checked = structure;
-                input.addEventListener('change', function() {
-                    currentVariableValues[baseName] = this.checked;
+                currentType = 'boolean';
+            } else if (typeof structure === 'number') {
+                currentType = 'number';
+            } else if (typeof structure === 'object' && structure !== null) {
+                currentType = 'json';
+            }
+            
+            types.forEach(type => {
+                const option = document.createElement('option');
+                option.value = type.value;
+                option.textContent = type.label;
+                option.selected = type.value === currentType;
+                typeSelect.appendChild(option);
+            });
+            
+            headerDiv.appendChild(label);
+            headerDiv.appendChild(typeSelect);
+            inputDiv.appendChild(headerDiv);
+            
+            // Function to create appropriate input based on type
+            function createInputForType(type, value) {
+                let input;
+                
+                if (type === 'boolean') {
+                    input = document.createElement('input');
+                    input.type = 'checkbox';
+                    input.checked = Boolean(value);
+                } else if (type === 'json') {
+                    input = document.createElement('textarea');
+                    input.value = typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value);
+                    input.style.minHeight = '80px';
+                    input.style.resize = 'vertical';
+                    input.style.fontFamily = '"Menlo", "Consolas", monospace';
+                    input.style.fontSize = '12px';
+                } else if (type === 'string' && String(value).length > 50) {
+                    input = document.createElement('textarea');
+                    input.value = String(value);
+                    input.style.minHeight = '60px';
+                    input.style.resize = 'vertical';
+                } else {
+                    input = document.createElement('input');
+                    input.type = type === 'number' ? 'number' : 'text';
+                    input.value = String(value);
+                    input.placeholder = `Enter ${type} value for ${baseName}`;
+                }
+                
+                input.id = `var-${baseName}`;
+                input.name = baseName;
+                input.style.width = '100%';
+                input.style.padding = '6px 8px';
+                input.style.border = '1px solid #e0e0e0';
+                input.style.borderRadius = '4px';
+                input.style.backgroundColor = 'var(--input-bg)';
+                input.style.color = 'var(--text-color)';
+                
+                return input;
+            }
+            
+            let currentInput = createInputForType(currentType, structure);
+            
+            // Add event listener for input changes
+            function addInputListener(input, type) {
+                const eventType = type === 'boolean' ? 'change' : 'input';
+                input.addEventListener(eventType, function() {
+                    let value = this.value;
+                    
+                    if (type === 'boolean') {
+                        value = this.checked;
+                    } else if (type === 'number') {
+                        value = this.value === '' ? '' : Number(this.value);
+                    } else if (type === 'json') {
+                        try {
+                            value = JSON.parse(this.value);
+                            this.style.borderColor = '#e0e0e0';
+                        } catch (e) {
+                            this.style.borderColor = '#d32f2f';
+                            value = this.value; // Keep as string if invalid JSON
+                        }
+                    }
+                    
+                    currentVariableValues[baseName] = value;
+                    
+                    // Sync to JSON editor
+                    syncFormToJson();
+                    
                     if (autoRerenderToggle.checked) {
                         debounce(update, 300)();
                     }
                 });
-            } else {
-                if (input.tagName === 'TEXTAREA') {
-                    input.value = structure;
-                    input.style.minHeight = '60px';
-                    input.style.resize = 'vertical';
-                } else {
-                    input.type = 'text';
-                    input.value = structure;
-                    input.placeholder = `Enter value for ${baseName}`;
+            }
+            
+            addInputListener(currentInput, currentType);
+            
+            // Type selector change handler
+            typeSelect.addEventListener('change', function() {
+                const newType = this.value;
+                const oldInput = inputDiv.querySelector('input, textarea');
+                let currentValue = currentVariableValues[baseName] || structure;
+                
+                // Convert value to new type
+                if (newType === 'boolean') {
+                    currentValue = Boolean(currentValue);
+                } else if (newType === 'number') {
+                    currentValue = currentValue === '' ? 0 : Number(currentValue) || 0;
+                } else if (newType === 'string') {
+                    currentValue = String(currentValue);
+                } else if (newType === 'json') {
+                    if (typeof currentValue !== 'object') {
+                        try {
+                            currentValue = JSON.parse(String(currentValue));
+                        } catch (e) {
+                            currentValue = String(currentValue);
+                        }
+                    }
                 }
                 
-        input.addEventListener('input', function() {
-                    currentVariableValues[baseName] = this.value;
-            if (autoRerenderToggle.checked) {
-                        debounce(update, 300)();
-            }
-        });
-            }
-        
-        inputDiv.appendChild(label);
-        inputDiv.appendChild(input);
+                // Create new input
+                const newInput = createInputForType(newType, currentValue);
+                addInputListener(newInput, newType);
+                
+                // Replace the input
+                oldInput.parentNode.replaceChild(newInput, oldInput);
+                
+                // Update stored value
+                currentVariableValues[baseName] = currentValue;
+                
+                // Sync to JSON editor
+                syncFormToJson();
+                
+                if (autoRerenderToggle.checked) {
+                    debounce(update, 300)();
+                }
+            });
+            
+            inputDiv.appendChild(currentInput);
             container.appendChild(inputDiv);
         }
         
@@ -695,25 +860,8 @@ function createVariableForm(variableStructures) {
  */
 function getCurrentVariables() {
     if (isFormMode) {
-        const formData = {};
-        variablesForm.querySelectorAll('input, textarea').forEach(input => {
-            const varName = input.name;
-            let value = input.value;
-            
-            // Try to parse as JSON if it looks like JSON
-            if (value.trim().startsWith('{') || value.trim().startsWith('[') || 
-                value === 'true' || value === 'false' || 
-                (value.trim() && !isNaN(value.trim()))) {
-                try {
-                    value = JSON.parse(value);
-                } catch (e) {
-                    // Keep as string if not valid JSON
-                }
-            }
-            
-            formData[varName] = value;
-        });
-        return formData;
+        // Return the current state that's been maintained by the form inputs
+        return currentVariableValues;
     } else {
         try {
             return JSON.parse(varsEditor.getValue() || '{}');
@@ -865,6 +1013,14 @@ extractVariablesBtn.addEventListener('click', function() {
     showButtonFeedback(this, message, 2000);
 });
 
+// Sync form to JSON button
+syncFormBtn.addEventListener('click', function() {
+    if (isFormMode) {
+        syncFormToJson();
+        showButtonFeedback(this, 'Synced to JSON!', 1500);
+    }
+});
+
 // Mode toggle button
 toggleModeBtn.addEventListener('click', function() {
     const wasFormMode = isFormMode;
@@ -876,11 +1032,13 @@ toggleModeBtn.addEventListener('click', function() {
         variablesForm.style.display = 'block';
         toggleModeBtn.textContent = 'Switch to JSON Mode';
         variablesHeader.textContent = 'Variables (Form)';
+        syncFormBtn.style.display = 'inline-block';
         
         // Get current variables from JSON and update our state
         try {
             const currentVars = JSON.parse(varsEditor.getValue() || '{}');
-            currentVariableValues = currentVars;
+            // Merge with existing values to preserve any form changes
+            currentVariableValues = { ...currentVariableValues, ...currentVars };
             
             // Convert to the structure format expected by createVariableForm
             const variableStructures = {};
@@ -890,7 +1048,6 @@ toggleModeBtn.addEventListener('click', function() {
             
             extractedVariables = new Set(Object.keys(currentVars));
         
-        // Create form with current variables
             createVariableForm(variableStructures);
         } catch (e) {
             // If JSON is invalid, keep existing state or create empty form
@@ -902,6 +1059,7 @@ toggleModeBtn.addEventListener('click', function() {
         variablesForm.style.display = 'none';
         toggleModeBtn.textContent = 'Switch to Form Mode';
         variablesHeader.textContent = 'Variables (JSON)';
+        syncFormBtn.style.display = 'none';
         
         // Update JSON editor with current form values
         const currentVars = getCurrentVariables();

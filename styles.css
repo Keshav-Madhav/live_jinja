@@ -502,6 +502,41 @@ input:checked + .slider:before {
 .variable-input input:hover, .variable-input textarea:hover {
     border-color: var(--accent-color);
 }
+
+/* Variable input with type selector styling */
+.variable-input .variable-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 5px;
+}
+
+.variable-input .type-selector {
+    font-size: 11px;
+    padding: 2px 6px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background: var(--input-bg);
+    color: var(--text-color);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.variable-input .type-selector:hover {
+    border-color: var(--accent-color);
+}
+
+.variable-input .type-selector:focus {
+    outline: none;
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+}
+
+/* Dark mode specific adjustments for selects */
+body.dark-mode .variable-input .type-selector {
+    background: var(--input-bg);
+    border-color: var(--border-color);
+}
 .form-mode-toggle {
     display: flex;
     justify-content: space-between;
