@@ -31,20 +31,20 @@
     <!-- Drawer Overlay -->
     <div class="drawer-overlay" id="drawer-overlay"></div>
 
-    <!-- Saved Configurations Drawer -->
+    <!-- Saved Templates Drawer -->
     <div class="drawer" id="saved-configs-drawer">
         <div class="drawer-header">
-            <h2>Saved Configurations</h2>
+            <h2>Saved Templates</h2>
             <button class="drawer-close" id="drawer-close-btn">&times;</button>
         </div>
         <div class="drawer-content" id="drawer-content">
-            <p class="drawer-empty-message" id="drawer-empty-message">No saved configurations yet. Save your first configuration to get started!</p>
+            <p class="drawer-empty-message" id="drawer-empty-message">No saved templates yet. Save your first template to get started!</p>
         </div>
     </div>
 
     <header class="main-header">
         <div class="header-left">
-            <button class="burger-menu" id="burger-menu-btn" aria-label="Open saved configurations">
+            <button class="burger-menu" id="burger-menu-btn" aria-label="Open saved Templates">
                 <span class="burger-line"></span>
                 <span class="burger-line"></span>
                 <span class="burger-line"></span>
@@ -52,7 +52,8 @@
             <h1>Live Jinja Parser (Pyodide) 🐍</h1>
         </div>
         <div class="theme-toggle-container">
-            <button class="header-btn" id="save-config-btn">Save Configuration</button>
+            <button class="header-btn" id="share-current-btn">Share</button>
+            <button class="header-btn" id="save-config-btn">Save Template</button>
             <span class="theme-label">Light Mode</span>
             <label class="theme-switch">
                 <input type="checkbox" id="theme-toggle">
@@ -144,21 +145,39 @@
         </div>
     </div>
 
-    <!-- Save Configuration Modal -->
+    <!-- Save Template Modal -->
     <div class="modal-overlay" id="save-modal-overlay">
         <div class="modal">
             <div class="modal-header">
-                <h3>Save Configuration</h3>
+                <h3>Save Template</h3>
                 <button class="modal-close" id="modal-close-btn">&times;</button>
             </div>
             <div class="modal-body">
-                <label for="config-name">Configuration Name</label>
-                <input type="text" id="config-name" placeholder="Enter a name for this configuration" autofocus>
+                <label for="config-name">Template Name</label>
+                <input type="text" id="config-name" placeholder="Enter a name for this Template" autofocus>
                 <p class="modal-hint">Save your current template, variables, and all switch settings (auto-rerender, markdown, mermaid, etc.) for later use.</p>
             </div>
             <div class="modal-footer">
                 <button class="modal-btn modal-btn-cancel" id="modal-cancel-btn">Cancel</button>
                 <button class="modal-btn modal-btn-save" id="modal-save-btn">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Rename Template Modal -->
+    <div class="modal-overlay" id="rename-modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Rename Template</h3>
+                <button class="modal-close" id="rename-modal-close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <label for="rename-config-name">Template Name</label>
+                <input type="text" id="rename-config-name" placeholder="Enter new name" autofocus>
+            </div>
+            <div class="modal-footer">
+                <button class="modal-btn modal-btn-cancel" id="rename-modal-cancel-btn">Cancel</button>
+                <button class="modal-btn modal-btn-save" id="rename-modal-save-btn">Rename</button>
             </div>
         </div>
     </div>

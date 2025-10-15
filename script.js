@@ -50,6 +50,7 @@ const themeToggle = document.getElementById('theme-toggle');
 const markdownToggle = document.getElementById('markdown-toggle');
 const mermaidToggle = document.getElementById('mermaid-toggle');
 const saveConfigBtn = document.getElementById('save-config-btn');
+const shareCurrentBtn = document.getElementById('share-current-btn');
 const saveModalOverlay = document.getElementById('save-modal-overlay');
 const modalCloseBtn = document.getElementById('modal-close-btn');
 const modalCancelBtn = document.getElementById('modal-cancel-btn');
@@ -61,6 +62,11 @@ const savedConfigsDrawer = document.getElementById('saved-configs-drawer');
 const drawerCloseBtn = document.getElementById('drawer-close-btn');
 const drawerContent = document.getElementById('drawer-content');
 const drawerEmptyMessage = document.getElementById('drawer-empty-message');
+const renameModalOverlay = document.getElementById('rename-modal-overlay');
+const renameModalCloseBtn = document.getElementById('rename-modal-close-btn');
+const renameModalCancelBtn = document.getElementById('rename-modal-cancel-btn');
+const renameModalSaveBtn = document.getElementById('rename-modal-save-btn');
+const renameConfigNameInput = document.getElementById('rename-config-name');
 
 // --- STATE MANAGEMENT ---
 let isFormMode = false;
@@ -69,6 +75,7 @@ let currentVariableValues = {};
 let isMarkdownMode = false;
 let isMermaidMode = false;
 let lastRenderedOutput = '';
+let currentRenameIndex = null; // Track which config is being renamed
 
 // Store debounced function references for proper event listener removal
 let debouncedUpdateFromJinja = null;
@@ -1139,15 +1146,30 @@ function createConfigCard(config, index) {
     const header = document.createElement('div');
     header.className = 'config-card-header';
     
+    const nameContainer = document.createElement('div');
+    nameContainer.className = 'config-card-name-container';
+    
     const name = document.createElement('h3');
     name.className = 'config-card-name';
     name.textContent = config.name;
+    
+    const renameIcon = document.createElement('button');
+    renameIcon.className = 'config-rename-icon';
+    renameIcon.innerHTML = '✏️';
+    renameIcon.setAttribute('aria-label', 'Rename configuration');
+    renameIcon.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openRenameModal(index, config.name);
+    });
+    
+    nameContainer.appendChild(name);
+    nameContainer.appendChild(renameIcon);
     
     const date = document.createElement('span');
     date.className = 'config-card-date';
     date.textContent = formatDate(config.timestamp);
     
-    header.appendChild(name);
+    header.appendChild(nameContainer);
     header.appendChild(date);
     card.appendChild(header);
     
@@ -1295,6 +1317,58 @@ function deleteConfiguration(index) {
 }
 
 /**
+ * Opens the rename modal
+ */
+function openRenameModal(index, currentName) {
+    currentRenameIndex = index;
+    renameConfigNameInput.value = currentName;
+    renameModalOverlay.classList.add('active');
+    renameConfigNameInput.focus();
+    renameConfigNameInput.select();
+}
+
+/**
+ * Closes the rename modal
+ */
+function closeRenameModal() {
+    currentRenameIndex = null;
+    renameModalOverlay.classList.remove('active');
+    renameConfigNameInput.value = '';
+}
+
+/**
+ * Renames a configuration
+ */
+function renameConfiguration() {
+    const newName = renameConfigNameInput.value.trim();
+    
+    if (!newName) {
+        // Visual feedback for empty name
+        renameConfigNameInput.style.borderColor = '#ef4444';
+        renameConfigNameInput.placeholder = 'Please enter a name';
+        setTimeout(() => {
+            renameConfigNameInput.style.borderColor = '';
+            renameConfigNameInput.placeholder = 'Enter new name';
+        }, 2000);
+        return;
+    }
+    
+    try {
+        const stored = localStorage.getItem('jinjaConfigurations');
+        let configs = stored ? JSON.parse(stored) : [];
+        
+        if (currentRenameIndex >= 0 && currentRenameIndex < configs.length) {
+            configs[currentRenameIndex].name = newName;
+            localStorage.setItem('jinjaConfigurations', JSON.stringify(configs));
+            loadSavedConfigurations(); // Refresh the list
+            closeRenameModal();
+        }
+    } catch (e) {
+        console.error('Error renaming configuration:', e);
+    }
+}
+
+/**
  * Shares a configuration by creating a compressed URL
  */
 async function shareConfiguration(config, button) {
@@ -1346,6 +1420,66 @@ async function shareConfiguration(config, button) {
 }
 
 /**
+ * Shares the current configuration (without saving)
+ */
+async function shareCurrentConfiguration() {
+    try {
+        // Get current template and variables
+        const template = jinjaEditor.getValue();
+        const variables = getCurrentVariables();
+        
+        // Get all toggle/switch states
+        const switchStates = {
+            textWrap: textWrapToggle.checked,
+            autoRerender: autoRerenderToggle.checked,
+            showWhitespace: showWhitespaceToggle.checked,
+            markdown: markdownToggle.checked,
+            mermaid: mermaidToggle.checked,
+            theme: themeToggle.checked
+        };
+        
+        // Create config object for sharing
+        const shareConfig = {
+            name: "Shared Configuration",
+            template: template,
+            variables: variables,
+            isFormMode: isFormMode,
+            switchStates: switchStates
+        };
+        
+        // Convert to JSON and compress
+        const json = JSON.stringify(shareConfig);
+        const compressed = LZString.compressToEncodedURIComponent(json);
+        
+        // Create share URL
+        const baseUrl = window.location.origin + window.location.pathname;
+        const shareUrl = `${baseUrl}?config=${compressed}`;
+        
+        // Copy to clipboard
+        await navigator.clipboard.writeText(shareUrl);
+        
+        // Show feedback
+        showButtonFeedback(shareCurrentBtn, 'URL Copied!', 2000);
+        
+        console.log('Share URL length:', shareUrl.length);
+    } catch (err) {
+        console.error('Error sharing current configuration:', err);
+        
+        // Show error feedback
+        const originalText = shareCurrentBtn.textContent;
+        shareCurrentBtn.textContent = 'Error!';
+        shareCurrentBtn.style.background = '#ef4444';
+        shareCurrentBtn.disabled = true;
+        
+        setTimeout(() => {
+            shareCurrentBtn.textContent = originalText;
+            shareCurrentBtn.style.background = '';
+            shareCurrentBtn.disabled = false;
+        }, 2000);
+    }
+}
+
+/**
  * Loads configuration from URL parameter on page load
  */
 function loadFromUrlParam() {
@@ -1391,7 +1525,43 @@ drawerOverlay.addEventListener('click', function() {
     closeDrawer();
 });
 
+// --- RENAME CONFIGURATION FUNCTIONALITY ---
+
+// Rename modal close button
+renameModalCloseBtn.addEventListener('click', function() {
+    closeRenameModal();
+});
+
+// Rename modal cancel button
+renameModalCancelBtn.addEventListener('click', function() {
+    closeRenameModal();
+});
+
+// Rename modal save button
+renameModalSaveBtn.addEventListener('click', function() {
+    renameConfiguration();
+});
+
+// Close rename modal when clicking outside
+renameModalOverlay.addEventListener('click', function(e) {
+    if (e.target === renameModalOverlay) {
+        closeRenameModal();
+    }
+});
+
+// Handle Enter key in rename input
+renameConfigNameInput.addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+        renameConfiguration();
+    }
+});
+
 // --- SAVE CONFIGURATION FUNCTIONALITY ---
+
+// Share current configuration button
+shareCurrentBtn.addEventListener('click', function() {
+    shareCurrentConfiguration();
+});
 
 /**
  * Opens the save configuration modal
@@ -1626,6 +1796,8 @@ document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
         if (saveModalOverlay.classList.contains('active')) {
             closeSaveModal();
+        } else if (renameModalOverlay.classList.contains('active')) {
+            closeRenameModal();
         } else if (savedConfigsDrawer.classList.contains('active')) {
             closeDrawer();
         }

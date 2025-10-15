@@ -1217,12 +1217,43 @@ body.dark-mode .markdown-content .mermaid svg {
     margin-bottom: 12px;
 }
 
+.config-card-name-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+}
+
 .config-card-name {
     font-size: 15px;
     font-weight: 600;
     color: var(--text-color);
     margin: 0;
-    flex: 1;
+}
+
+.config-rename-icon {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+    padding: 4px;
+    border-radius: 4px;
+    opacity: 0;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+}
+
+.config-card:hover .config-rename-icon {
+    opacity: 0.6;
+}
+
+.config-rename-icon:hover {
+    opacity: 1 !important;
+    background: var(--btn-hover);
+    transform: scale(1.1);
 }
 
 .config-card-date {
