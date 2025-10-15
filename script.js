@@ -70,6 +70,14 @@ const renameModalCancelBtn = document.getElementById('rename-modal-cancel-btn');
 const renameModalSaveBtn = document.getElementById('rename-modal-save-btn');
 const renameConfigNameInput = document.getElementById('rename-config-name');
 const jinjaVersionSelect = document.getElementById('jinja-version-select');
+const conflictModalOverlay = document.getElementById('conflict-modal-overlay');
+const conflictModalCloseBtn = document.getElementById('conflict-modal-close-btn');
+const conflictOverrideBtn = document.getElementById('conflict-override-btn');
+const conflictSaveNewBtn = document.getElementById('conflict-save-new-btn');
+const conflictNameDisplay = document.getElementById('conflict-name-display');
+const conflictNewNameInput = document.getElementById('conflict-new-name-input');
+const conflictButtonName = document.getElementById('conflict-button-name');
+const conflictInputHint = document.getElementById('conflict-input-hint');
 
 // --- STATE MANAGEMENT ---
 let isFormMode = false;
@@ -79,6 +87,7 @@ let isMarkdownMode = false;
 let isMermaidMode = false;
 let lastRenderedOutput = '';
 let currentRenameIndex = null; // Track which config is being renamed
+let conflictContext = null; // Track conflict resolution context
 
 // Store debounced function references for proper event listener removal
 let debouncedUpdateFromJinja = null;
@@ -1719,8 +1728,8 @@ function closeRenameModal() {
 /**
  * Renames a configuration
  */
-function renameConfiguration() {
-    const newName = renameConfigNameInput.value.trim();
+function renameConfiguration(overrideName = null) {
+    const newName = overrideName || renameConfigNameInput.value.trim();
     
     if (!newName) {
         // Visual feedback for empty name
@@ -1738,10 +1747,22 @@ function renameConfiguration() {
         let configs = stored ? JSON.parse(stored) : [];
         
         if (currentRenameIndex >= 0 && currentRenameIndex < configs.length) {
+            const oldName = configs[currentRenameIndex].name;
+            
+            // Check if the new name conflicts with an existing config (excluding the current one)
+            const conflictIndex = configs.findIndex((c, idx) => c.name === newName && idx !== currentRenameIndex);
+            if (conflictIndex !== -1 && !overrideName) {
+                // Show conflict modal
+                closeRenameModal();
+                openConflictModal(newName, true);
+                return;
+            }
+            
             configs[currentRenameIndex].name = newName;
             localStorage.setItem('jinjaConfigurations', JSON.stringify(configs));
             loadSavedConfigurations(); // Refresh the list
             closeRenameModal();
+            closeConflictModal();
         }
     } catch (e) {
         console.error('Error renaming configuration:', e);
@@ -1946,6 +1967,107 @@ shareCurrentBtn.addEventListener('click', function() {
 });
 
 /**
+ * Generates a unique name by appending a number
+ */
+function generateUniqueName(baseName, existingNames) {
+    let counter = 1;
+    let newName = `${baseName} (${counter})`;
+    while (existingNames.includes(newName)) {
+        counter++;
+        newName = `${baseName} (${counter})`;
+    }
+    return newName;
+}
+
+/**
+ * Opens the conflict resolution modal
+ */
+function openConflictModal(conflictName, isRename = false) {
+    const savedConfigs = JSON.parse(localStorage.getItem('jinjaConfigurations') || '[]');
+    const existingNames = savedConfigs.map(c => c.name);
+    const uniqueName = generateUniqueName(conflictName, existingNames);
+    
+    conflictNameDisplay.textContent = conflictName;
+    conflictNewNameInput.value = uniqueName;
+    conflictButtonName.textContent = uniqueName;
+    
+    conflictContext = {
+        originalName: conflictName,
+        uniqueName: uniqueName,
+        isRename: isRename,
+        existingNames: existingNames
+    };
+    
+    // Initial validation
+    validateConflictInput();
+    
+    conflictModalOverlay.classList.add('active');
+    setTimeout(() => {
+        conflictNewNameInput.focus();
+        conflictNewNameInput.select();
+    }, 100);
+}
+
+/**
+ * Validates the conflict input and updates button states
+ */
+function validateConflictInput() {
+    if (!conflictContext) return;
+    
+    const newName = conflictNewNameInput.value.trim();
+    const { originalName, uniqueName, existingNames } = conflictContext;
+    
+    // Clear previous hints
+    conflictInputHint.className = 'modal-input-hint';
+    conflictInputHint.textContent = '';
+    
+    if (!newName) {
+        // Empty input
+        conflictSaveNewBtn.disabled = true;
+        conflictOverrideBtn.disabled = false;
+        conflictInputHint.className = 'modal-input-hint error';
+        conflictInputHint.textContent = 'Please enter a name';
+        return;
+    }
+    
+    if (newName === originalName) {
+        // Same as original (unchanged from conflict)
+        conflictSaveNewBtn.disabled = true;
+        conflictOverrideBtn.disabled = false;
+        conflictInputHint.className = 'modal-input-hint info';
+        conflictInputHint.textContent = 'This name already exists. Use "Override" to replace it.';
+        return;
+    }
+    
+    if (existingNames.includes(newName)) {
+        // Name already exists (different from original)
+        conflictSaveNewBtn.disabled = true;
+        conflictOverrideBtn.disabled = false;
+        conflictInputHint.className = 'modal-input-hint error';
+        conflictInputHint.textContent = 'This name also already exists. Choose a different name.';
+        return;
+    }
+    
+    // Valid unique name
+    conflictSaveNewBtn.disabled = false;
+    conflictOverrideBtn.disabled = true;
+    conflictButtonName.textContent = newName;
+    conflictInputHint.className = 'modal-input-hint success';
+    conflictInputHint.textContent = '✓ This name is available';
+}
+
+/**
+ * Closes the conflict resolution modal
+ */
+function closeConflictModal() {
+    conflictModalOverlay.classList.remove('active');
+    conflictNewNameInput.value = '';
+    conflictInputHint.textContent = '';
+    conflictInputHint.className = 'modal-input-hint';
+    conflictContext = null;
+}
+
+/**
  * Opens the save configuration modal
  */
 function openSaveModal() {
@@ -1965,8 +2087,8 @@ function closeSaveModal() {
 /**
  * Saves the current configuration to local storage
  */
-function saveConfiguration() {
-    const configName = configNameInput.value.trim();
+function saveConfiguration(overrideName = null) {
+    const configName = overrideName || configNameInput.value.trim();
     
     if (!configName) {
         // Visual feedback for empty name
@@ -1976,6 +2098,27 @@ function saveConfiguration() {
             configNameInput.style.borderColor = '';
             configNameInput.placeholder = 'Enter a name for this configuration';
         }, 2000);
+        return;
+    }
+    
+    // Get existing saves from local storage
+    let savedConfigs = [];
+    try {
+        const stored = localStorage.getItem('jinjaConfigurations');
+        if (stored) {
+            savedConfigs = JSON.parse(stored);
+        }
+    } catch (e) {
+        console.error('Error loading saved configurations:', e);
+        savedConfigs = [];
+    }
+    
+    // Check if a configuration with the same name exists (and we're not overriding)
+    const existingIndex = savedConfigs.findIndex(c => c.name === configName);
+    if (existingIndex !== -1 && !overrideName) {
+        // Show conflict modal
+        closeSaveModal();
+        openConflictModal(configName, false);
         return;
     }
     
@@ -2005,23 +2148,11 @@ function saveConfiguration() {
         switchStates: switchStates
     };
     
-    // Get existing saves from local storage
-    let savedConfigs = [];
-    try {
-        const stored = localStorage.getItem('jinjaConfigurations');
-        if (stored) {
-            savedConfigs = JSON.parse(stored);
-        }
-    } catch (e) {
-        console.error('Error loading saved configurations:', e);
-        savedConfigs = [];
-    }
-    
     // Check if a configuration with the same name exists
-    const existingIndex = savedConfigs.findIndex(c => c.name === configName);
-    if (existingIndex !== -1) {
+    const finalExistingIndex = savedConfigs.findIndex(c => c.name === configName);
+    if (finalExistingIndex !== -1) {
         // Update existing configuration
-        savedConfigs[existingIndex] = config;
+        savedConfigs[finalExistingIndex] = config;
     } else {
         // Add new configuration
         savedConfigs.push(config);
@@ -2031,8 +2162,9 @@ function saveConfiguration() {
     try {
         localStorage.setItem('jinjaConfigurations', JSON.stringify(savedConfigs));
         
-        // Close modal
+        // Close modals
         closeSaveModal();
+        closeConflictModal();
         
         // Refresh drawer if it's open
         if (savedConfigsDrawer.classList.contains('active')) {
@@ -2184,10 +2316,62 @@ configNameInput.addEventListener('keypress', function(e) {
     }
 });
 
+// Conflict modal event listeners
+conflictModalCloseBtn.addEventListener('click', function() {
+    closeConflictModal();
+});
+
+// Input validation on every keystroke
+conflictNewNameInput.addEventListener('input', function() {
+    validateConflictInput();
+});
+
+// Handle Enter key in conflict input
+conflictNewNameInput.addEventListener('keypress', function(e) {
+    if (e.key === 'Enter' && !conflictSaveNewBtn.disabled) {
+        conflictSaveNewBtn.click();
+    }
+});
+
+conflictOverrideBtn.addEventListener('click', function() {
+    if (!conflictContext) return;
+    
+    if (conflictContext.isRename) {
+        // Override for rename
+        renameConfiguration(conflictContext.originalName);
+    } else {
+        // Override for save
+        saveConfiguration(conflictContext.originalName);
+    }
+});
+
+conflictSaveNewBtn.addEventListener('click', function() {
+    if (!conflictContext || this.disabled) return;
+    
+    const newName = conflictNewNameInput.value.trim();
+    
+    if (conflictContext.isRename) {
+        // Save with new name for rename
+        renameConfiguration(newName);
+    } else {
+        // Save with new name for save
+        saveConfiguration(newName);
+    }
+});
+
+// Close conflict modal when clicking outside
+conflictModalOverlay.addEventListener('click', function(e) {
+    if (e.target === conflictModalOverlay) {
+        closeConflictModal();
+    }
+});
+
 // Handle Escape key to close modal or drawer
 document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
-        if (saveModalOverlay.classList.contains('active')) {
+        if (conflictModalOverlay.classList.contains('active')) {
+            closeConflictModal();
+        } else if (saveModalOverlay.classList.contains('active')) {
             closeSaveModal();
         } else if (renameModalOverlay.classList.contains('active')) {
             closeRenameModal();

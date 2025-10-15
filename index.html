@@ -212,6 +212,28 @@
         </div>
     </div>
 
+    <!-- Name Conflict Modal -->
+    <div class="modal-overlay" id="conflict-modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>⚠️ Template Name Already Exists</h3>
+                <button class="modal-close" id="conflict-modal-close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p class="modal-warning">A template named "<strong id="conflict-name-display"></strong>" already exists.</p>
+                <p class="modal-hint">Choose how you'd like to proceed:</p>
+                
+                <label for="conflict-new-name-input">Save with a different name:</label>
+                <input type="text" id="conflict-new-name-input" placeholder="Enter a different name">
+                <p class="modal-input-hint" id="conflict-input-hint"></p>
+            </div>
+            <div class="modal-footer modal-footer-vertical">
+                <button class="modal-btn modal-btn-warning" id="conflict-override-btn">Override Existing</button>
+                <button class="modal-btn modal-btn-save" id="conflict-save-new-btn" disabled>Save as "<span id="conflict-button-name"></span>"</button>
+            </div>
+        </div>
+    </div>
+
 <script src="script.js"></script>
 
 </body>
