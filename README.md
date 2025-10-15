@@ -13,6 +13,7 @@ Perfect for developers who need to **render Jinja2 templates online**, **test Ji
 
 ### ✨ Core Functionality
 - **Live Template Rendering**: Real-time Jinja2 template processing using Python's actual Jinja2 library via Pyodide
+- **Version Selection**: Choose from multiple Jinja2 versions (2.10.x, 2.11.x, 3.0.x, 3.1.x) to match your production environment
 - **Auto-Rerender**: Automatically updates output as you type (can be toggled on/off)
 - **Manual Rerender**: Option to disable auto-rendering and manually trigger updates
 - **Syntax Highlighting**: Full Jinja2 syntax highlighting with CodeMirror
@@ -77,11 +78,49 @@ Perfect for developers who need to **render Jinja2 templates online**, **test Ji
 ## 🎯 Use Cases
 
 - **Template Development**: Rapid prototyping and testing of Jinja2 templates
+- **Version Compatibility Testing**: Test templates against different Jinja2 versions before deployment
 - **Learning Jinja2**: Interactive environment for learning template syntax
 - **Documentation Generation**: Create markdown docs with dynamic content and diagrams
 - **Diagram Generation**: Build flowcharts and visualizations from template data
 - **Debugging**: Visualize whitespace and troubleshoot template issues
 - **Code Review**: Share and review templates without server setup
+- **Migration Planning**: Test templates when upgrading Jinja2 versions in production
+
+## 🔧 Jinja2 Version Selector
+
+The Live Jinja Parser now supports multiple Jinja2 versions, allowing you to match your production environment exactly:
+
+### Supported Versions
+- **Latest (3.1.4)** - Default, most recent stable release
+- **3.1.x series** - 3.1.3, 3.1.2, 3.1.1, 3.1.0
+- **3.0.x series** - 3.0.3, 3.0.2, 3.0.1, 3.0.0
+- **2.11.x series** - 2.11.3, 2.11.2, 2.11.1, 2.11.0
+- **2.10.x series** - 2.10.3, 2.10.1
+
+### Why Use Version Selection?
+1. **Compatibility Testing**: Ensure your templates work with your production Jinja2 version
+2. **Bug Reproduction**: Test issues specific to certain versions
+3. **Migration Planning**: Preview how templates behave in newer versions
+4. **Feature Availability**: Check which features are available in different versions
+
+### How to Find Your Jinja2 Version
+```python
+import jinja2
+print(jinja2.__version__)
+```
+Or from the command line:
+```bash
+pip show jinja2
+```
+
+### Features
+- **Session-Only Selection**: Version resets to "Latest" on page reload (intentional design)
+- **Included in Templates**: Saved templates remember which Jinja2 version was used (shown as badge)
+- **Shared in URLs**: Share links include the Jinja2 version for reference
+- **Dynamic Switching**: Change versions on-the-fly without page reload
+- **Manual Control**: Loading a template shows which version it was created with, but you manually choose if/when to switch versions
+
+For more details, see [JINJA_VERSION_SELECTOR.md](./JINJA_VERSION_SELECTOR.md).
 
 ## 🚀 Getting Started
 

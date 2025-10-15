@@ -69,6 +69,7 @@ const renameModalCloseBtn = document.getElementById('rename-modal-close-btn');
 const renameModalCancelBtn = document.getElementById('rename-modal-cancel-btn');
 const renameModalSaveBtn = document.getElementById('rename-modal-save-btn');
 const renameConfigNameInput = document.getElementById('rename-config-name');
+const jinjaVersionSelect = document.getElementById('jinja-version-select');
 
 // --- STATE MANAGEMENT ---
 let isFormMode = false;
@@ -111,13 +112,15 @@ mermaid.initialize({
 
 // --- PYODIDE SETUP ---
 
+let currentJinjaVersion = 'latest';
+
 async function setupPyodide() {
     try {
         loader.style.display = 'block';
         loadingOverlay.style.display = 'block';
         
         pyodide = await loadPyodide();
-        await pyodide.loadPackage("jinja2");
+        await installJinja2Version(currentJinjaVersion);
         
         isInitialized = true;
         loader.style.display = 'none';
@@ -131,6 +134,55 @@ async function setupPyodide() {
     } catch (error) {
         loader.textContent = `Failed to load Python environment: ${error.message}`;
         loader.style.color = '#d32f2f';
+    }
+}
+
+async function installJinja2Version(version) {
+    try {
+        // Show loading message
+        loader.textContent = `Loading Jinja2 ${version === 'latest' ? 'latest' : 'v' + version}...`;
+        
+        // Install the specific version
+        if (version === 'latest') {
+            await pyodide.loadPackage("jinja2");
+        } else {
+            // Load micropip first if not already loaded
+            await pyodide.loadPackage("micropip");
+            
+            // Uninstall existing jinja2 if it's already loaded (for version switching)
+            if (isInitialized) {
+                try {
+                    await pyodide.runPythonAsync(`
+                        import micropip
+                        await micropip.uninstall('jinja2')
+                    `);
+                    console.log('Uninstalled previous Jinja2 version');
+                } catch (e) {
+                    // If uninstall fails, it's okay - might not be installed yet
+                    console.log('No previous Jinja2 to uninstall');
+                }
+            }
+            
+            // Install the specific version
+            await pyodide.runPythonAsync(`
+                import micropip
+                await micropip.install('jinja2==${version}')
+            `);
+        }
+        
+        currentJinjaVersion = version;
+        
+        // Verify installation and show version
+        const installedVersion = await pyodide.runPythonAsync(`
+            import jinja2
+            jinja2.__version__
+        `);
+        
+        console.log(`Jinja2 version ${installedVersion} installed successfully`);
+        
+    } catch (error) {
+        console.error('Failed to install Jinja2:', error);
+        throw error;
     }
 }
 
@@ -1476,12 +1528,28 @@ function createConfigCard(config, index) {
     nameContainer.appendChild(name);
     nameContainer.appendChild(renameIcon);
     
+    const dateVersionContainer = document.createElement('div');
+    dateVersionContainer.style.display = 'flex';
+    dateVersionContainer.style.flexDirection = 'column';
+    dateVersionContainer.style.alignItems = 'flex-end';
+    dateVersionContainer.style.gap = '4px';
+    
     const date = document.createElement('span');
     date.className = 'config-card-date';
     date.textContent = formatDate(config.timestamp);
+    dateVersionContainer.appendChild(date);
+    
+    // Add version info if available
+    if (config.switchStates && config.switchStates.jinjaVersion) {
+        const versionSpan = document.createElement('span');
+        versionSpan.className = 'config-card-version';
+        const versionText = config.switchStates.jinjaVersion === 'latest' ? 'Latest' : `v${config.switchStates.jinjaVersion}`;
+        versionSpan.textContent = versionText;
+        dateVersionContainer.appendChild(versionSpan);
+    }
     
     header.appendChild(nameContainer);
-    header.appendChild(date);
+    header.appendChild(dateVersionContainer);
     card.appendChild(header);
     
     // Template section
@@ -1748,7 +1816,8 @@ async function shareCurrentConfiguration() {
             removeExtraWhitespace: removeExtraWhitespaceToggle.checked,
             markdown: markdownToggle.checked,
             mermaid: mermaidToggle.checked,
-            theme: themeToggle.checked
+            theme: themeToggle.checked,
+            jinjaVersion: jinjaVersionSelect.value
         };
         
         // Create config object for sharing
@@ -1922,7 +1991,8 @@ function saveConfiguration() {
         removeExtraWhitespace: removeExtraWhitespaceToggle.checked,
         markdown: markdownToggle.checked,
         mermaid: mermaidToggle.checked,
-        theme: themeToggle.checked // light mode when checked
+        theme: themeToggle.checked, // light mode when checked
+        jinjaVersion: jinjaVersionSelect.value
     };
     
     // Create configuration object
@@ -2063,6 +2133,9 @@ function loadConfiguration(config) {
             }
         }
         
+        // Jinja2 version - just show it in the badge, don't auto-switch
+        // User can manually switch if they want to test with that version
+        
         // Theme (optional - you might want to keep theme as a global preference)
         // Uncomment if you want saved configs to restore theme as well
         /*
@@ -2121,6 +2194,46 @@ document.addEventListener('keydown', function(e) {
         } else if (savedConfigsDrawer.classList.contains('active')) {
             closeDrawer();
         }
+    }
+});
+
+// Jinja2 version selector
+jinjaVersionSelect.addEventListener('change', async function() {
+    const selectedVersion = this.value;
+    
+    if (!isInitialized || selectedVersion === currentJinjaVersion) {
+        return;
+    }
+    
+    try {
+        // Show loading state
+        loader.textContent = `Switching to Jinja2 ${selectedVersion === 'latest' ? 'latest' : 'v' + selectedVersion}...`;
+        loader.style.display = 'block';
+        loadingOverlay.style.display = 'block';
+        this.disabled = true;
+        
+        // Store the value to restore it after installation
+        const versionToInstall = selectedVersion;
+        
+        // Install the new version
+        await installJinja2Version(versionToInstall);
+        
+        // Ensure the select keeps its value
+        this.value = versionToInstall;
+        
+        // Hide loading state
+        loader.style.display = 'none';
+        loadingOverlay.style.display = 'none';
+        this.disabled = false;
+        
+        // Rerender with the new version
+        await update();
+        
+    } catch (error) {
+        loader.textContent = `Failed to switch Jinja2 version: ${error.message}`;
+        loader.style.color = '#d32f2f';
+        this.disabled = false;
+        console.error('Version switch error:', error);
     }
 });
 
