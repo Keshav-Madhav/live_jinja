@@ -2,6 +2,8 @@
 
 **The ultimate online Jinja2 template renderer, editor, and tester** - no installation required! A powerful, browser-based Jinja2 template engine that runs Python's official Jinja2 library directly in your web browser using Pyodide.
 
+Quickly iterate on templates, then **save, share, and reload entire workspaces** (template, variables, and UI settings) via local storage or a single compressed link.
+
 Perfect for developers who need to **render Jinja2 templates online**, **test Jinja template syntax**, **debug template variables**, or **learn Jinja2 templating** without setting up a local Python environment. Whether you're working with Flask templates, Ansible playbooks, or any Jinja2-based templating system, this live renderer provides instant feedback and professional debugging tools.
 
 ## 🔍 Keywords
@@ -15,6 +17,12 @@ Perfect for developers who need to **render Jinja2 templates online**, **test Ji
 - **Manual Rerender**: Option to disable auto-rendering and manually trigger updates
 - **Syntax Highlighting**: Full Jinja2 syntax highlighting with CodeMirror
 - **Dark/Light Mode**: Beautiful dark mode by default with easy theme toggle
+
+### 💾 Template Management
+- **Save Templates Locally**: Persist template, variables, output options, and layout preferences in the browser's storage
+- **One-Click Share Links**: Generate compressed URLs containing the full configuration for quick collaboration
+- **Load & Rename**: Restore saved setups from the side drawer, rename them in-place, or delete when no longer needed
+- **Instant Copy Actions**: Copy template or rendered output with a single click
 
 ### 🔧 Variable Management
 - **Intelligent Variable Extraction**: Automatically detects and extracts variables from your templates
@@ -141,6 +149,12 @@ Three powerful ways to view your rendered templates:
 - **Plain Text**: Standard output with optional whitespace visualization (·→↵)
 - **Markdown**: Full markdown rendering with embedded Mermaid diagrams
 - **Mermaid**: Pure diagram mode - entire output becomes a single diagram
+
+### Save, Share, and Reload Workflows
+- **Drawer-Based Management**: Browse all saved templates in a drawer with metadata and quick actions
+- **Configuration Snapshots**: Each save captures template source, variable values, rendering toggles, and layout state
+- **Shareable Links**: Compress current state into a URL for teammates to load identical sessions instantly (no backend required)
+- **Rename or Delete**: Keep collections tidy with inline rename and delete controls
 
 ## 🌐 Browser Compatibility
 
