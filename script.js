@@ -50,6 +50,7 @@ const themeToggle = document.getElementById('theme-toggle');
 const markdownToggle = document.getElementById('markdown-toggle');
 const mermaidToggle = document.getElementById('mermaid-toggle');
 const saveConfigBtn = document.getElementById('save-config-btn');
+const shareCurrentBtn = document.getElementById('share-current-btn');
 const saveModalOverlay = document.getElementById('save-modal-overlay');
 const modalCloseBtn = document.getElementById('modal-close-btn');
 const modalCancelBtn = document.getElementById('modal-cancel-btn');
@@ -1419,6 +1420,66 @@ async function shareConfiguration(config, button) {
 }
 
 /**
+ * Shares the current configuration (without saving)
+ */
+async function shareCurrentConfiguration() {
+    try {
+        // Get current template and variables
+        const template = jinjaEditor.getValue();
+        const variables = getCurrentVariables();
+        
+        // Get all toggle/switch states
+        const switchStates = {
+            textWrap: textWrapToggle.checked,
+            autoRerender: autoRerenderToggle.checked,
+            showWhitespace: showWhitespaceToggle.checked,
+            markdown: markdownToggle.checked,
+            mermaid: mermaidToggle.checked,
+            theme: themeToggle.checked
+        };
+        
+        // Create config object for sharing
+        const shareConfig = {
+            name: "Shared Configuration",
+            template: template,
+            variables: variables,
+            isFormMode: isFormMode,
+            switchStates: switchStates
+        };
+        
+        // Convert to JSON and compress
+        const json = JSON.stringify(shareConfig);
+        const compressed = LZString.compressToEncodedURIComponent(json);
+        
+        // Create share URL
+        const baseUrl = window.location.origin + window.location.pathname;
+        const shareUrl = `${baseUrl}?config=${compressed}`;
+        
+        // Copy to clipboard
+        await navigator.clipboard.writeText(shareUrl);
+        
+        // Show feedback
+        showButtonFeedback(shareCurrentBtn, 'URL Copied!', 2000);
+        
+        console.log('Share URL length:', shareUrl.length);
+    } catch (err) {
+        console.error('Error sharing current configuration:', err);
+        
+        // Show error feedback
+        const originalText = shareCurrentBtn.textContent;
+        shareCurrentBtn.textContent = 'Error!';
+        shareCurrentBtn.style.background = '#ef4444';
+        shareCurrentBtn.disabled = true;
+        
+        setTimeout(() => {
+            shareCurrentBtn.textContent = originalText;
+            shareCurrentBtn.style.background = '';
+            shareCurrentBtn.disabled = false;
+        }, 2000);
+    }
+}
+
+/**
  * Loads configuration from URL parameter on page load
  */
 function loadFromUrlParam() {
@@ -1496,6 +1557,11 @@ renameConfigNameInput.addEventListener('keypress', function(e) {
 });
 
 // --- SAVE CONFIGURATION FUNCTIONALITY ---
+
+// Share current configuration button
+shareCurrentBtn.addEventListener('click', function() {
+    shareCurrentConfiguration();
+});
 
 /**
  * Opens the save configuration modal
