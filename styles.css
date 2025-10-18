@@ -15,6 +15,7 @@
     --accent-color: #3b82f6;
     --accent-hover: #2563eb;
     --success-color: #10b981;
+    --logo-color: #111111;
     --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
     --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
     --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
@@ -42,6 +43,7 @@ body.dark-mode {
     --accent-color: #3b82f6;
     --accent-hover: #60a5fa;
     --success-color: #10b981;
+    --logo-color: #d4d4d8;
     --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
     --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -1px rgba(0, 0, 0, 0.3);
     --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -2px rgba(0, 0, 0, 0.4);
@@ -71,7 +73,6 @@ body {
     border-bottom: 1px solid transparent;
     padding: 14px 24px;
     box-shadow: var(--shadow-sm);
-    backdrop-filter: blur(10px);
     transition: all 0.3s ease;
     position: relative;
     z-index: 100;
@@ -81,6 +82,27 @@ body {
     display: flex;
     align-items: center;
     gap: 16px;
+}
+
+.header-logo {
+    width: 36px;
+    height: 36px;
+    display: inline-block;
+    background-color: var(--logo-color);
+    mask-image: url('favicon.svg');
+    mask-repeat: no-repeat;
+    mask-position: center;
+    mask-size: contain;
+    -webkit-mask-image: url('favicon.svg');
+    -webkit-mask-repeat: no-repeat;
+    -webkit-mask-position: center;
+    -webkit-mask-size: contain;
+    flex-shrink: 0;
+    transition: transform 0.2s ease;
+}
+
+.header-logo:hover {
+    transform: rotate(-6deg);
 }
 
 .main-header::after {
