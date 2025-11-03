@@ -260,6 +260,171 @@ function showToggleFeedback(toggleElement, message) {
 }
 
 /**
+ * Parses Jinja2 error messages to extract line and column information
+ * Returns: { line: number|null, column: number|null, message: string, fullError: string }
+ */
+function parseJinjaError(errorText) {
+    const errorInfo = {
+        line: null,
+        column: null,
+        message: '',
+        fullError: errorText,
+        errorType: 'Unknown Error'
+    };
+    
+    // Pattern 1: "line X" (most common in Jinja2 errors)
+    const linePattern = /line (\d+)/i;
+    const lineMatch = errorText.match(linePattern);
+    if (lineMatch) {
+        errorInfo.line = parseInt(lineMatch[1]);
+    }
+    
+    // Pattern 2: "at line X, column Y" or "line X, column Y"
+    const lineColPattern = /line (\d+)(?:,?\s+column (\d+))?/i;
+    const lineColMatch = errorText.match(lineColPattern);
+    if (lineColMatch) {
+        errorInfo.line = parseInt(lineColMatch[1]);
+        if (lineColMatch[2]) {
+            errorInfo.column = parseInt(lineColMatch[2]);
+        }
+    }
+    
+    // Pattern 3: Extract error type
+    const errorTypePattern = /jinja2\.exceptions\.(\w+):|(\w+Error):/i;
+    const typeMatch = errorText.match(errorTypePattern);
+    if (typeMatch) {
+        errorInfo.errorType = typeMatch[1] || typeMatch[2];
+    }
+    
+    // Pattern 4: Extract the actual error message (after the error type)
+    const messagePattern = /(?:jinja2\.exceptions\.\w+:|[\w]+Error:)\s*(.+?)(?:\n|$)/i;
+    const messageMatch = errorText.match(messagePattern);
+    if (messageMatch) {
+        errorInfo.message = messageMatch[1].trim();
+    } else {
+        // Fallback: use the first line that's not empty
+        const lines = errorText.split('\n').filter(line => line.trim());
+        errorInfo.message = lines[0] || errorText;
+    }
+    
+    return errorInfo;
+}
+
+/**
+ * Navigates to and highlights a specific line in the template editor
+ */
+let currentErrorMark = null; // Store current error highlight
+let currentErrorWidget = null; // Store current error widget
+let isUserEditing = false; // Track if user is actively editing
+
+function goToTemplateLine(line, column = null, errorMessage = '') {
+    // Clear any existing error highlights
+    clearTemplateError();
+    
+    // Convert to 0-indexed
+    const lineIndex = Math.max(0, line - 1);
+    const colIndex = column !== null ? Math.max(0, column - 1) : 0;
+    
+    // Only move cursor and scroll if user is NOT actively editing
+    if (!isUserEditing) {
+        // Move cursor to the error position
+        const pos = { line: lineIndex, ch: colIndex };
+        jinjaEditor.setCursor(pos);
+        
+        // Scroll to center the line
+        jinjaEditor.scrollIntoView(pos, 100);
+        
+        // Focus the editor
+        jinjaEditor.focus();
+    }
+    
+    // Always highlight the error line (even if user is editing)
+    currentErrorMark = jinjaEditor.markText(
+        { line: lineIndex, ch: 0 },
+        { line: lineIndex, ch: jinjaEditor.getLine(lineIndex).length },
+        {
+            className: 'cm-error-line',
+            css: 'background-color: rgba(239, 68, 68, 0.2); border-left: 3px solid #ef4444;'
+        }
+    );
+    
+    // Add a widget with the actual error message
+    const errorWidget = document.createElement('div');
+    errorWidget.className = 'cm-error-widget';
+    errorWidget.textContent = errorMessage || `⚠️ Error on line ${line}`;
+    errorWidget.style.cssText = `
+        color: #ef4444;
+        font-size: 11px;
+        font-weight: 600;
+        padding: 4px 8px;
+        margin-top: 2px;
+        background: rgba(239, 68, 68, 0.1);
+        border-radius: 4px;
+        display: inline-block;
+    `;
+    
+    currentErrorWidget = jinjaEditor.addLineWidget(lineIndex, errorWidget, {
+        coverGutter: false,
+        noHScroll: true
+    });
+    
+    // Auto-clear highlight when user starts editing
+    const clearOnChange = jinjaEditor.on('change', () => {
+        clearTemplateError();
+        jinjaEditor.off('change', clearOnChange);
+    });
+}
+
+/**
+ * Clears error highlighting from the template editor
+ */
+function clearTemplateError() {
+    if (currentErrorMark) {
+        currentErrorMark.clear();
+        currentErrorMark = null;
+    }
+    if (currentErrorWidget) {
+        currentErrorWidget.clear();
+        currentErrorWidget = null;
+    }
+}
+
+/**
+ * Formats error message with enhanced styling (no navigation button needed - live updates)
+ */
+function formatErrorMessage(errorInfo) {
+    const container = document.createElement('div');
+    container.className = 'error-message-container';
+    
+    // Create error header
+    const header = document.createElement('div');
+    header.innerHTML = `<strong>❌ ${errorInfo.errorType}</strong>`;
+    header.style.fontSize = '14px';
+    header.style.marginBottom = '8px';
+    container.appendChild(header);
+    
+    // Add location badge if we have line info
+    if (errorInfo.line !== null) {
+        const locationBadge = document.createElement('div');
+        locationBadge.className = 'error-location';
+        let locationText = `📍 Line ${errorInfo.line}`;
+        if (errorInfo.column !== null) {
+            locationText += `, Column ${errorInfo.column}`;
+        }
+        locationBadge.textContent = locationText;
+        container.appendChild(locationBadge);
+    }
+    
+    // Add error message
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'error-details';
+    messageDiv.textContent = errorInfo.message;
+    container.appendChild(messageDiv);
+    
+    return container;
+}
+
+/**
  * UPDATED: Renders text with visible whitespace characters without affecting layout.
  */
 function renderWhitespace(text) {
@@ -1092,9 +1257,21 @@ async function update() {
     try {
         context = getCurrentVariables();
     } catch (e) {
-        // If there's an error getting variables, show it
-        outputElement.textContent = `Error in variables:\n${e.message}`;
+        // If there's an error getting variables, show it with enhanced formatting
+        const errorInfo = {
+            line: null,
+            column: null,
+            message: e.message,
+            fullError: e.stack || e.message,
+            errorType: 'Variables Error'
+        };
+        
+        const errorContainer = formatErrorMessage(errorInfo);
+        outputElement.innerHTML = '';
+        outputElement.appendChild(errorContainer);
         outputElement.className = 'error';
+        outputElement.style.display = 'block';
+        markdownOutputElement.style.display = 'none';
         return;
     }
 
@@ -1109,6 +1286,8 @@ async function update() {
         const result = pyodide.runPython(`
 import jinja2
 import json
+import traceback
+import sys
 
 try:
     template_str = """${escapedTemplate}"""
@@ -1117,24 +1296,52 @@ try:
     template = jinja2.Template(template_str)
     context = json.loads(context_str)
     result = template.render(context)
+except jinja2.exceptions.TemplateSyntaxError as e:
+    result = f"TemplateSyntaxError: {e.message} (line {e.lineno})"
+except jinja2.exceptions.UndefinedError as e:
+    # Try to extract line number from traceback
+    tb = sys.exc_info()[2]
+    lineno = None
+    for frame in traceback.extract_tb(tb):
+        if 'template' in frame.filename.lower():
+            lineno = frame.lineno
+            break
+    if lineno:
+        result = f"UndefinedError: {str(e)} (line {lineno})"
+    else:
+        result = f"UndefinedError: {str(e)}"
 except jinja2.exceptions.TemplateError as e:
-    result = f"Jinja2 Template Error: {e}"
+    # Generic template error with line number if available
+    lineno = getattr(e, 'lineno', None)
+    if lineno:
+        result = f"TemplateError: {str(e)} (line {lineno})"
+    else:
+        result = f"TemplateError: {str(e)}"
 except json.JSONDecodeError as e:
-    result = f"JSON Error: {e}"
+    result = f"JSON Error: {str(e)} at line {e.lineno}, column {e.colno}"
 except Exception as e:
-    result = f"Error: {e}"
+    result = f"Error: {str(e)}"
 
 result
         `);
         
-        // Apply extra whitespace removal if enabled
+        // Check if result is an error
+        const isError = result.includes('Error:') || 
+                       result.includes('TemplateSyntaxError:') ||
+                       result.includes('UndefinedError:') ||
+                       result.includes('TemplateError:');
+        
+        // Apply extra whitespace removal if enabled and not an error
         let processedResult = result;
-        if (removeExtraWhitespaceToggle.checked) {
+        if (!isError && removeExtraWhitespaceToggle.checked) {
             processedResult = removeExtraWhitespace(result);
         }
         
         // Store the result
         lastRenderedOutput = processedResult;
+        
+        // Clear any existing error highlights
+        clearTemplateError();
         
         // Set the main content based on mode
         if (isMermaidMode) {
@@ -1152,16 +1359,47 @@ result
             outputElement.style.display = 'block';
             markdownOutputElement.style.display = 'none';
             
-            if (showWhitespaceToggle.checked) {
-                outputElement.innerHTML = renderWhitespace(processedResult);
+            if (isError) {
+                // Parse and format error
+                const errorInfo = parseJinjaError(processedResult);
+                const errorContainer = formatErrorMessage(errorInfo);
+                
+                outputElement.innerHTML = '';
+                outputElement.appendChild(errorContainer);
+                outputElement.className = 'error';
+                
+                // Automatically highlight error line in template if available
+                if (errorInfo.line !== null) {
+                    setTimeout(() => {
+                        goToTemplateLine(errorInfo.line, errorInfo.column, errorInfo.message);
+                    }, 100);
+                }
             } else {
-                outputElement.textContent = processedResult;
+                // Normal output
+                if (showWhitespaceToggle.checked) {
+                    outputElement.innerHTML = renderWhitespace(processedResult);
+                } else {
+                    outputElement.textContent = processedResult;
+                }
+                outputElement.className = '';
             }
-            outputElement.className = processedResult.includes('Error:') ? 'error' : '';
         }
     } catch (e) {
-        outputElement.textContent = `Python execution error: ${e.message}`;
+        // Handle JavaScript errors
+        const errorInfo = {
+            line: null,
+            column: null,
+            message: e.message,
+            fullError: e.stack || e.message,
+            errorType: 'Python Execution Error'
+        };
+        
+        const errorContainer = formatErrorMessage(errorInfo);
+        outputElement.innerHTML = '';
+        outputElement.appendChild(errorContainer);
         outputElement.className = 'error';
+        outputElement.style.display = 'block';
+        markdownOutputElement.style.display = 'none';
     }
 }
 
@@ -2554,6 +2792,23 @@ function setupEventListeners() {
         debouncedUpdateFromVars = null;
     }
 }
+
+// Track when user is actively editing to prevent cursor jumping
+let editingTimeout = null;
+jinjaEditor.on('change', (cm, change) => {
+    // Mark user as editing
+    isUserEditing = true;
+    
+    // Clear any existing timeout
+    if (editingTimeout) {
+        clearTimeout(editingTimeout);
+    }
+    
+    // Reset the flag after user stops typing for 500ms
+    editingTimeout = setTimeout(() => {
+        isUserEditing = false;
+    }, 500);
+});
 
 // Debounce function to prevent too frequent updates
 function debounce(func, wait) {
